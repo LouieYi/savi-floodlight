@@ -102,6 +102,7 @@ public class DHCP extends BasePacket {
     protected MacAddress clientHardwareAddress;
     protected String serverName;
     protected String bootFileName;
+    protected IPv4Address requestedIP;
     protected List<DHCPOption> options = new ArrayList<DHCPOption>();
 
     /**
@@ -110,8 +111,12 @@ public class DHCP extends BasePacket {
     public byte getOpCode() {
         return opCode;
     }
+    
+    public IPv4Address getRequestIP() {
+		return requestedIP;
+	}
 
-    /**
+	/**
      * @param opCode the opCode to set
      */
     public DHCP setOpCode(byte opCode) {
@@ -462,6 +467,7 @@ public class DHCP extends BasePacket {
             bb.get();
         this.serverName = readString(bb, 64);
         this.bootFileName = readString(bb, 128);
+        this.requestedIP = null;
         // read the magic cookie
         // magic cookie
         bb.get();
@@ -501,6 +507,10 @@ public class DHCP extends BasePacket {
             if (code == 255) {
                 // remaining bytes are supposed to be 0, but ignore them just in case
                 break;
+            }
+            
+            if(code == 50){
+            	this.requestedIP = IPv4Address.of(option.getData());
             }
         }
 

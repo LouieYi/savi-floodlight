@@ -3,12 +3,13 @@ package net.floodlightcontroller.savi.binding;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.projectfloodlight.openflow.types.DatapathId;
+import org.projectfloodlight.openflow.types.IPAddress;
 import org.projectfloodlight.openflow.types.MacAddress;
-import org.python.antlr.PythonParser.raise_stmt_return;
 
 import net.floodlightcontroller.devicemanager.SwitchPort;
 
-public class BindingPool<T>{
+public class BindingPool<T extends IPAddress<?>>{
 	protected Map<T, Binding<T>> bindingTable;
 	protected Map<MacAddress, SwitchPort> hardwareBindingTable;
 	
@@ -66,6 +67,22 @@ public class BindingPool<T>{
 	
 	public void delBinding(T address){
 		bindingTable.remove(address);
+	}
+	
+	public void delSwitch(DatapathId switchId){
+		for(MacAddress macAddress:hardwareBindingTable.keySet()){
+			SwitchPort switchPort = hardwareBindingTable.get(macAddress);
+			if(switchId.equals(switchPort.getSwitchDPID())){
+				hardwareBindingTable.remove(macAddress);
+			}
+		}
+		
+		for(T key:bindingTable.keySet()){
+			SwitchPort switchPort = bindingTable.get(key).getSwitchPort();
+			if(switchId.equals(switchPort.getSwitchDPID())){
+				bindingTable.remove(key);
+			}
+		}
 	}
 	
 	public boolean check(MacAddress macAddress, SwitchPort switchPort){

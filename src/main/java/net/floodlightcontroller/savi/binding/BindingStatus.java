@@ -1,6 +1,6 @@
 package net.floodlightcontroller.savi.binding;
 
-enum BindingStatus{
+public enum BindingStatus{
 	NO_ENTRY_EXIST(0,"NO_ENTRY_EXIST"),
 	INIT(1,"INIT"),
 	SELECTING(2,"SELECTING"),

@@ -1,10 +1,11 @@
 package net.floodlightcontroller.savi.binding;
 
+import org.projectfloodlight.openflow.types.IPAddress;
 import org.projectfloodlight.openflow.types.MacAddress;
 
 import net.floodlightcontroller.devicemanager.SwitchPort;
 
-public class Binding<T> {
+public class Binding<T extends IPAddress<?>> {
 	private BindingStatus status;
 	
 	private SwitchPort switchPort;
@@ -104,5 +105,7 @@ public class Binding<T> {
 	public void setLeaseTime(long leaseTime) {
 		this.leaseTime = leaseTime;
 	}
-	
+	public boolean expirable(){
+		return leaseTime == 0;
+	}
 }
