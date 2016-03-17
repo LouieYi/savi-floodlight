@@ -1,6 +1,5 @@
 package net.floodlightcontroller.savi;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -12,7 +11,6 @@ import org.projectfloodlight.openflow.types.IPVersion;
 import org.projectfloodlight.openflow.types.IPv4Address;
 import org.projectfloodlight.openflow.types.IPv6Address;
 import org.projectfloodlight.openflow.types.MacAddress;
-import org.projectfloodlight.openflow.types.OFPort;
 import net.floodlightcontroller.devicemanager.SwitchPort;
 import net.floodlightcontroller.savi.binding.Binding;
 

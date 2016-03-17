@@ -21,6 +21,7 @@ public class DHCPv6 extends BasePacket {
 	protected int validLifetime;
 	protected int preferredLifetime;
 	protected IPv6Address targetAddress;
+	protected byte[] cache;
 	
 	public static final byte SOLICIT 				= 1 ;
 	public static final byte ADVERTISE 				= 2 ;
@@ -85,33 +86,42 @@ public class DHCPv6 extends BasePacket {
 	@Override
 	public byte[] serialize() {
 		// TODO Auto-generated method stub
+		
+		/*
 		int length = 4;
 		for(DHCPv6Option option:options){
 			length += option.getLength() + 4;
 		}
 		byte[] data = new byte[length];
 		data[0] = msgType;
-		data[1] = (byte)(transactionId>>16);
-		data[2] = (byte)(transactionId>>8);
-		data[3] = (byte)(transactionId);
+		data[1] = (byte) ((transactionId>>16)&(0xFF));
+		data[2] = (byte)((transactionId>>8)&(0xFF));
+		data[3] = (byte)((transactionId)&(0xFF));
+		System.out.println("TS "+transactionId);
+		
 		ByteBuffer bb = ByteBuffer.wrap(data,4,data.length);
 		for(DHCPv6Option option:options){
 			bb.put(option.serilize());
 		}
-		return data;
+		*/
+		return cache;
 	}
 
 	@Override
 	public IPacket deserialize(byte[] data, int offset, int length) throws PacketParsingException {
 		// TODO Auto-generated method stub
+		cache = new byte[length];	
+		for(int i=0;i<length;i++){
+			cache[i] = data[offset+i];
+		}
 		time = 0;
 		validLifetime = 0;
-		
 		msgType = data[offset];
-		transactionId += data[offset + 1];
-		transactionId = (transactionId<<8) + data[offset + 2];
-		transactionId = (transactionId<<8) + data[offset + 3];
+		transactionId = data[offset + 1];
+		transactionId = ((transactionId<<8)&0xFF00) + data[offset + 2];
+		transactionId = ((transactionId<<8)&0xFFFF00) + data[offset + 3];
 		options = DHCPv6Option.getOptions(data, offset + 4);
+		
 		
 		for(DHCPv6Option option:options){
 			ByteBuffer bb = null;

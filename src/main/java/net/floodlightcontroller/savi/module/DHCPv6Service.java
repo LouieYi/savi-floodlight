@@ -23,6 +23,9 @@ import net.floodlightcontroller.packet.IPv6;
 import net.floodlightcontroller.packet.UDP;
 import net.floodlightcontroller.routing.IRoutingDecision.RoutingAction;
 import net.floodlightcontroller.savi.action.Action;
+import net.floodlightcontroller.savi.action.ClearIPv6BindingAction;
+import net.floodlightcontroller.savi.action.ClearPortBindingAction;
+import net.floodlightcontroller.savi.action.ClearSwitchBindingAction;
 import net.floodlightcontroller.savi.action.Action.ActionFactory;
 import net.floodlightcontroller.savi.binding.Binding;
 import net.floodlightcontroller.savi.binding.BindingPool;
@@ -74,6 +77,11 @@ public class DHCPv6Service extends SAVIBaseService {
 		return null;
 	}
 	protected RoutingAction processSolicit(SwitchPort switchPort,Ethernet eth){
+		IPv6 ipv6 = (IPv6)eth.getPayload();
+		UDP udp = (UDP)ipv6.getPayload();
+		DHCPv6 dhcpv6 = (DHCPv6)udp.getPayload();
+		int id = dhcpv6.getTransactionId();
+		log.info("SOL "+id);
 		List<Action> actions = new ArrayList<>();
 		actions.add(ActionFactory.getFloodAction(switchPort.getSwitchDPID(), switchPort.getPort(), eth));
 		saviProvider.pushActions(actions);
@@ -82,12 +90,16 @@ public class DHCPv6Service extends SAVIBaseService {
 	protected RoutingAction processAdvertise(SwitchPort switchPort,Ethernet eth){
 		List<Action> actions = new ArrayList<>();
 		IPv6 ipv6 = (IPv6)eth.getPayload();
+		UDP udp = (UDP)ipv6.getPayload();
+		DHCPv6 dhcpv6 = (DHCPv6)udp.getPayload();
 		MacAddress srcMac = eth.getSourceMACAddress();
 		IPv6Address ipv6Address = ipv6.getSourceAddress();
-		
+		int id = dhcpv6.getTransactionId();
+		log.info("ADV "+id);
 		if(!pool.isContain(ipv6Address)){
 			Binding<IPv6Address> binding = new Binding<>();
 			
+			binding.setSwitchPort(switchPort);
 			binding.setAddress(ipv6Address);
 			binding.setMacAddress(srcMac);
 			binding.setStatus(BindingStatus.BOUND);
@@ -109,12 +121,13 @@ public class DHCPv6Service extends SAVIBaseService {
 		IPv6Address ipv6Address = dhcpv6.getTargetAddress();
 		MacAddress mac = eth.getSourceMACAddress();
 		Binding<IPv6Address> binding = new Binding<>();
-		
+		int id = dhcpv6.getTransactionId();
+		log.info("REQUEST "+id);
 		binding.setAddress(ipv6Address);
 		binding.setStatus(BindingStatus.REQUESTING);
 		binding.setMacAddress(mac);
 		binding.setTransactionId(dhcpv6.getTransactionId());
-		
+		binding.setSwitchPort(switchPort);
 		pool.addBinding(ipv6Address, binding);
 		
 		actions.add(ActionFactory.getFloodAction(switchPort.getSwitchDPID(), switchPort.getPort(), eth));
@@ -130,6 +143,8 @@ public class DHCPv6Service extends SAVIBaseService {
 		IPv6Address ipv6Address = dhcpv6.getTargetAddress();
 		MacAddress macAddress = eth.getDestinationMACAddress();
 		int id = dhcpv6.getTransactionId();
+		
+		log.info("REPLY");
 		
 		if(confirmQueue.containsKey(id)){
 			Binding<IPv6Address> binding = confirmQueue.get(id);
@@ -206,7 +221,19 @@ public class DHCPv6Service extends SAVIBaseService {
 		
 	}
 	
+	@Override
+	protected void doClearIPv6BindingAction(ClearIPv6BindingAction action){
+		pool.delBinding(action.getIpv6Address());
+	}
+	@Override
+	protected void doClearPortBindingAction(ClearPortBindingAction action){
+		
+	}
+	@Override
 	
+	protected void doClearSwitchBindingAction(ClearSwitchBindingAction action){
+		pool.delSwitch(action.getSwitchId());
+	}
 	protected boolean isDHCPv6(Ethernet eth){
 		if(eth.getEtherType() == EthType.IPv6){
 			IPv6 ipv6 = (IPv6)eth.getPayload();

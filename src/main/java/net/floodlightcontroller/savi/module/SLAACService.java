@@ -21,6 +21,9 @@ import net.floodlightcontroller.packet.ICMPv6;
 import net.floodlightcontroller.packet.IPv6;
 import net.floodlightcontroller.routing.IRoutingDecision.RoutingAction;
 import net.floodlightcontroller.savi.action.Action;
+import net.floodlightcontroller.savi.action.ClearIPv6BindingAction;
+import net.floodlightcontroller.savi.action.ClearPortBindingAction;
+import net.floodlightcontroller.savi.action.ClearSwitchBindingAction;
 import net.floodlightcontroller.savi.action.Action.ActionFactory;
 import net.floodlightcontroller.savi.binding.Binding;
 import net.floodlightcontroller.savi.binding.BindingPool;
@@ -189,7 +192,18 @@ public class SLAACService extends SAVIBaseService {
 		}
 		return false;
 	}
-
+	@Override
+	protected void doClearIPv6BindingAction(ClearIPv6BindingAction action){
+		pool.delBinding(action.getIpv6Address());
+	}
+	@Override
+	protected void doClearPortBindingAction(ClearPortBindingAction action){
+		
+	}
+	@Override
+	protected void doClearSwitchBindingAction(ClearSwitchBindingAction action){
+		pool.delSwitch(action.getSwitchId());
+	}
 	@Override
 	public List<Match> getMatches() {
 		// TODO Auto-generated method stub
