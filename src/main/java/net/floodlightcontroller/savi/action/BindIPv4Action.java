@@ -14,6 +14,7 @@ public class BindIPv4Action extends Action {
 	}
 	
 	public BindIPv4Action(Binding<IPv4Address> binding){
+		this.type = ActionType.BIND_IPv4;
 		this.binding = binding;
 	}
 

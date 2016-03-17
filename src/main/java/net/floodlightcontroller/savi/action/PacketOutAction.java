@@ -25,6 +25,7 @@ public class PacketOutAction extends Action {
 	
 	public PacketOutAction(Ethernet eth, DatapathId switchId, OFPort inPort, List<OFPort> outPorts){
 		this.type = ActionType.PACKET_OUT;
+		this.eth = eth;
 		this.inPort = inPort;
 		this.switchId = switchId;
 		this.outPorts = outPorts;

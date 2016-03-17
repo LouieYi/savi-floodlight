@@ -116,6 +116,7 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 	@Override
 	public boolean pushActions(List<Action> actions) {
 		// TODO Auto-generated method stub
+		
 		for(Action action:actions){
 			switch(action.getType()){
 			case FLOOD:
@@ -348,6 +349,7 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 	
 	protected void doBindIPv4(BindIPv4Action action){
 		Binding<?> binding = action.getBinding();
+		log.info("BIND "+binding.getAddress());
 		manager.addBinding(binding);
 		
 	}

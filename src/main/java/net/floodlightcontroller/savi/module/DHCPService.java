@@ -94,6 +94,7 @@ public class DHCPService extends SAVIBaseService {
 		saviProvider.pushActions(actions);
 		return RoutingAction.NONE;
 	}
+	
 	protected RoutingAction processOffer(SwitchPort switchPort,Ethernet eth){
 		// TODO Loop in SELECTING status.
 		// Forward
@@ -104,26 +105,24 @@ public class DHCPService extends SAVIBaseService {
 		IPv4Address ipv4Address = ipv4.getSourceAddress();
 		
 		
-		log.info("12");
 		
 		if(!pool.isContain(ipv4Address)){
 			Binding<IPv4Address> binding = new Binding<>();
 			binding.setAddress(ipv4Address);
 			binding.setMacAddress(srcMac);
 			binding.setStatus(BindingStatus.BOUND);
+			binding.setSwitchPort(switchPort);
 			
 			pool.addBinding(ipv4Address, binding);
 			
-			//saviProvider.addBindingEntry(switchPort,eth.getSourceMACAddress(), ipv4Address);
+			actions.add(ActionFactory.getBindIPv4Action(binding));
 		}
 		
-		List<OFPort> ports = new ArrayList<>();
-		ports.add(pool.getSwitchPort(dstMac).getPort());
 		actions.add(ActionFactory.getPacketOutAction(eth, 
-													 switchPort.getSwitchDPID(), 
-													 OFPort.CONTROLLER, 
-													 ports));
+													 pool.getSwitchPort(dstMac),
+													 OFPort.CONTROLLER));
 		saviProvider.pushActions(actions);
+		
 		return RoutingAction.NONE;
 	}
 	protected RoutingAction processRequest(SwitchPort switchPort,Ethernet eth){
@@ -134,7 +133,7 @@ public class DHCPService extends SAVIBaseService {
 		
 		MacAddress macAddress = eth.getSourceMACAddress();
 		IPv4Address ipv4Address = dhcp.getRequestIP();
-		
+		log.info("REQUEST");
 		if(pool.isContain(ipv4Address)){
 			if(pool.check(ipv4Address, macAddress)){
 				Binding<IPv4Address> binding = pool.getBinding(ipv4Address);
@@ -161,10 +160,12 @@ public class DHCPService extends SAVIBaseService {
 			binding.setStatus(BindingStatus.REQUESTING);
 			binding.setAddress(ipv4Address);
 			binding.setTransactionId(dhcp.getTransactionId());
+			binding.setSwitchPort(switchPort);
 			
 			pool.addBinding(ipv4Address, binding);
 			actions.add(ActionFactory.getFloodAction(switchPort.getSwitchDPID(), switchPort.getPort(), eth));
 			saviProvider.pushActions(actions);
+			
 			return RoutingAction.NONE;
 		}
 		

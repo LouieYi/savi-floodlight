@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.projectfloodlight.openflow.types.DatapathId;
 import org.projectfloodlight.openflow.types.IPAddress;
@@ -30,13 +31,13 @@ public class BindingManager {
 	public static final byte NO_EXIST = 2;
 
 	public BindingManager() {
-		ipv4Binding = new HashMap<>();
-		ipv6Binding = new HashMap<>();
-		hardwareBinding = new HashMap<>();
+		ipv4Binding = new ConcurrentHashMap<>();
+		ipv6Binding = new ConcurrentHashMap<>();
+		hardwareBinding = new ConcurrentHashMap<>();
 		
-		ipv4SwitchBinding = new HashMap<>();
-		ipv6SwitchBinding = new HashMap<>();
-		hardwareSwitchBinding = new HashMap<>();
+		ipv4SwitchBinding = new ConcurrentHashMap<>();
+		ipv6SwitchBinding = new ConcurrentHashMap<>();
+		hardwareSwitchBinding = new ConcurrentHashMap<>();
 		
 	}
 	public void addSwitch(DatapathId switchId) {
@@ -56,7 +57,6 @@ public class BindingManager {
 		
 		SwitchPort switchPort = binding.getSwitchPort();
 		DatapathId switchId = switchPort.getSwitchDPID();
-		OFPort port = switchPort.getPort();
 		
 		MacAddress macAddress = binding.getMacAddress();
 		
@@ -66,7 +66,7 @@ public class BindingManager {
 			
 			Set<IPv4Address> set = null;
 			if(ipv4SwitchBinding.containsKey(switchId)){
-				set = ipv4SwitchBinding.get(port);
+				set = ipv4SwitchBinding.get(switchId);
 			}
 			else{
 				set = new HashSet<>();

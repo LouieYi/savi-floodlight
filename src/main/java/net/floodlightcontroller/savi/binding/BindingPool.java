@@ -1,7 +1,7 @@
 package net.floodlightcontroller.savi.binding;
 
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.projectfloodlight.openflow.types.DatapathId;
 import org.projectfloodlight.openflow.types.IPAddress;
@@ -15,8 +15,8 @@ public class BindingPool<T extends IPAddress<?>>{
 	
 	public BindingPool() {
 		// TODO Auto-generated constructor stub
-		bindingTable = new HashMap<>();
-		hardwareBindingTable = new HashMap<>();
+		bindingTable = new ConcurrentHashMap<>();
+		hardwareBindingTable = new ConcurrentHashMap<>();
 	}
 	
 	public boolean isBindingLeaseExpired(T address){
@@ -38,7 +38,9 @@ public class BindingPool<T extends IPAddress<?>>{
 	}
 	
 	public void addHardwareBinding(MacAddress macAddress,SwitchPort switchPort){
-		hardwareBindingTable.put(macAddress, switchPort);
+		synchronized(hardwareBindingTable){
+			hardwareBindingTable.put(macAddress, switchPort);
+		}
 	}
 	
 	public void delHardwareBinding(MacAddress macAddress){
@@ -62,25 +64,33 @@ public class BindingPool<T extends IPAddress<?>>{
 	}
 	
 	public void addBinding(T address, Binding<T> binding){
-		bindingTable.put(address, binding);
+		synchronized(bindingTable){
+			bindingTable.put(address, binding);
+		}
 	}
 	
 	public void delBinding(T address){
-		bindingTable.remove(address);
+		synchronized(bindingTable){
+			bindingTable.remove(address);
+		}
 	}
 	
 	public void delSwitch(DatapathId switchId){
-		for(MacAddress macAddress:hardwareBindingTable.keySet()){
-			SwitchPort switchPort = hardwareBindingTable.get(macAddress);
-			if(switchId.equals(switchPort.getSwitchDPID())){
-				hardwareBindingTable.remove(macAddress);
+		
+		synchronized(hardwareBindingTable){
+			for(MacAddress macAddress:hardwareBindingTable.keySet()){
+				SwitchPort switchPort = hardwareBindingTable.get(macAddress);
+				if(switchId.equals(switchPort.getSwitchDPID())){
+					hardwareBindingTable.remove(macAddress);
+				}
 			}
 		}
-		
-		for(T key:bindingTable.keySet()){
-			SwitchPort switchPort = bindingTable.get(key).getSwitchPort();
-			if(switchId.equals(switchPort.getSwitchDPID())){
-				bindingTable.remove(key);
+		synchronized(bindingTable){
+			for(T key:bindingTable.keySet()){
+				SwitchPort switchPort = bindingTable.get(key).getSwitchPort();
+				if(switchId.equals(switchPort.getSwitchDPID())){
+					bindingTable.remove(key);
+				}
 			}
 		}
 	}
