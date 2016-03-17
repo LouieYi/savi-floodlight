@@ -91,7 +91,6 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 			decision = new RoutingDecision(sw.getId(), inPort,
 					IDeviceService.fcStore.get(cntx, IDeviceService.CONTEXT_SRC_DEVICE), RoutingAction.FORWARD);
 		}
-		
 		for (SAVIService s : saviServices) {
 			if (s.match(eth)) {
 				routingAction = s.process(switchPort, eth);
@@ -121,7 +120,7 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 			switch(action.getType()){
 			case FLOOD:
 				doFlood((FloodAction)action);
-				return true;
+				break;
 			case PACKET_OUT:
 			case PACKET_OUT_MULTI_PORT:
 				doPacketOut((PacketOutAction)action);
@@ -159,13 +158,13 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 	@Override
 	public boolean isCallbackOrderingPrereq(OFType type, String name) {
 		// TODO Auto-generated method stub
-		return (type.equals(OFType.PACKET_IN) && (name.equals("topology") || name.equals("devicemanager")));
+		return false;//(type.equals(OFType.PACKET_IN) && (name.equals("topology") || name.equals("devicemanager")));
 	}
 
 	@Override
 	public boolean isCallbackOrderingPostreq(OFType type, String name) {
 		// TODO Auto-generated method stub
-		return type.equals(OFType.PACKET_IN) || name.equals("forwarding");
+		return false;//type.equals(OFType.PACKET_IN) || name.equals("forwarding");
 	}
 
 	@Override
@@ -355,6 +354,7 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 	
 	protected void doBindIPv6(BindIPv6Action action){
 		Binding<?> binding = action.getBinding();
+		log.info("BIND "+binding.getAddress().toString());
 		manager.addBinding(binding);
 	}
 	

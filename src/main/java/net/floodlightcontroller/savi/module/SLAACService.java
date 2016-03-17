@@ -2,9 +2,15 @@ package net.floodlightcontroller.savi.module;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
+import org.projectfloodlight.openflow.protocol.OFFactories;
+import org.projectfloodlight.openflow.protocol.OFVersion;
 import org.projectfloodlight.openflow.protocol.match.Match;
+import org.projectfloodlight.openflow.protocol.match.MatchField;
+import org.projectfloodlight.openflow.types.EthType;
 import org.projectfloodlight.openflow.types.IPv6Address;
 import org.projectfloodlight.openflow.types.IpProtocol;
 import org.projectfloodlight.openflow.types.MacAddress;
@@ -26,13 +32,38 @@ public class SLAACService extends SAVIBaseService {
 	protected static int UPDATE_DELAY = 2;
 	
 	BindingPool<IPv6Address> pool;
-	Set<Binding<IPv6Address>> updateQueue;
+	List<Binding<IPv6Address>> updateQueue;
 	
 	protected SingletonTask timer;
 	@Override
 	public void startUpService() {
 		// TODO Auto-generated method stub
-
+		pool = new BindingPool<>();
+		updateQueue = new  CopyOnWriteArrayList<>();
+		ScheduledExecutorService ses = threadPoolService.getScheduledExecutor();
+		
+		timer = new SingletonTask(ses, new Runnable() {
+			@Override
+			public void run() {
+				// TODO Auto-generated method stub
+				int tmp = (int)(System.currentTimeMillis()/1000);
+				synchronized (updateQueue) {
+					for(Binding<IPv6Address> entry:updateQueue){
+						if((tmp-entry.getBindingTime())>UPDATE_DELAY){
+							entry.setStatus(BindingStatus.BOUND);
+							entry.setBindingTime();
+							
+							List<Action> actions = new ArrayList<>();
+							actions.add(ActionFactory.getBindIPv6Action(entry));
+							saviProvider.pushActions(actions);
+							updateQueue.remove(entry);
+						}
+					}
+				}
+				timer.reschedule(TIMER_DELAY, TimeUnit.SECONDS);
+			}
+		});
+		timer.reschedule(100, TimeUnit.MILLISECONDS);
 	}
 	protected RoutingAction processICMPv6(SwitchPort switchPort,Ethernet eth){
 		IPv6 ipv6 = (IPv6)eth.getPayload();
@@ -91,8 +122,10 @@ public class SLAACService extends SAVIBaseService {
 		if(!pool.isContain(macAddress)){
 			pool.addHardwareBinding(macAddress, switchPort);
 		}
+		
 		actions.add(ActionFactory.getCheckIPv6Binding(switchPort, macAddress, targetAddress));
-		if(saviProvider.pushActions(actions)){
+		
+		if(saviProvider.pushActions(actions)){	
 			return RoutingAction.FORWARD_OR_FLOOD;
 		}
 		else if(pool.isContain(targetAddress)){
@@ -111,9 +144,12 @@ public class SLAACService extends SAVIBaseService {
 			binding.setMacAddress(macAddress);
 			binding.setStatus(BindingStatus.DETECTING);
 			binding.setBindingTime();
+			binding.setSwitchPort(switchPort);
 			pool.addBinding(targetAddress, binding);
 			
-			updateQueue.add(binding);
+			synchronized(updateQueue){
+				updateQueue.add(binding);
+			}
 			
 			actions.add(ActionFactory.getFloodAction(switchPort.getSwitchDPID(), switchPort.getPort(), eth));
 			saviProvider.pushActions(actions);
@@ -133,19 +169,46 @@ public class SLAACService extends SAVIBaseService {
 	@Override
 	public boolean match(Ethernet eth) {
 		// TODO Auto-generated method stub
+		if(eth.getEtherType() == EthType.IPv6){
+			IPv6 ipv6 = (IPv6)eth.getPayload();
+			if(ipv6.getNextHeader().equals(IpProtocol.IPv6_ICMP)){
+				ICMPv6 icmpv6 = (ICMPv6)ipv6.getPayload();
+				byte type = icmpv6.getICMPv6Type();
+				if(type == ICMPv6.NEIGHBOR_SOLICITATION){
+					
+					if(ipv6.getSourceAddress().isUnspecified()){
+						return true;
+					}
+				}
+				if(type == ICMPv6.NEIGHBOR_ADVERTISEMENT){
+					if(ipv6.getDestinationAddress().isBroadcast()){
+						return true;
+					}
+				}
+			}
+		}
 		return false;
 	}
 
 	@Override
 	public List<Match> getMatches() {
 		// TODO Auto-generated method stub
-		return null;
+		List<Match> array = new ArrayList<>();
+		
+		Match.Builder mb = OFFactories.getFactory(OFVersion.OF_13).buildMatch();
+		
+		mb.setExact(MatchField.ETH_TYPE, EthType.IPv6);
+		mb.setExact(MatchField.IP_PROTO, IpProtocol.IPv6_ICMP);
+
+		array.add(mb.build());
+		
+		return array;
 	}
 
 	@Override
 	public RoutingAction process(SwitchPort switchPort, Ethernet eth) {
 		// TODO Auto-generated method stub
-		return null;
+		return processICMPv6(switchPort, eth);
 	}
 
 }
