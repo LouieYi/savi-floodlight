@@ -3,7 +3,6 @@ package net.floodlightcontroller.savi.forwarding;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -66,6 +65,7 @@ import net.floodlightcontroller.routing.IRoutingDecision;
 import net.floodlightcontroller.routing.IRoutingService;
 import net.floodlightcontroller.routing.Route;
 import net.floodlightcontroller.routing.RoutingDecision;
+import net.floodlightcontroller.savi.Provider;
 import net.floodlightcontroller.savi.forwarding.mpls.MPLSLabelManager;
 import net.floodlightcontroller.topology.ITopologyService;
 import net.floodlightcontroller.topology.NodePortTuple;
@@ -73,6 +73,7 @@ import net.floodlightcontroller.util.FlowModUtils;
 
 public class Forwarding extends ForwardingBase implements IFloodlightModule, IOFMessageListener, IOFSwitchListener {
 
+	
 	protected MPLSLabelManager coreSwitchLabelManager;
 	protected Map<EthType, MPLSLabelManager> edgeSwitchLabelManagers;
 	
@@ -139,6 +140,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 				return Command.CONTINUE;
 			case MULTICAST:
 				// treat as broadcast
+				log.info("FLL");
 				doFlood(sw, pi, cntx);
 				return Command.CONTINUE;
 			case DROP:
@@ -233,8 +235,9 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 				fmb.setActions(actions)
 				   .setCookie(cookie)
 				   .setMatch(match)
-				   .setHardTimeout(FLOWMOD_DEFAULT_HARD_TIMEOUT)
-				   .setIdleTimeout(FLOWMOD_DEFAULT_IDLE_TIMEOUT)
+				   .setTableId(Provider.FLOW_TABLE_ID)
+				   .setHardTimeout(FLOWMOD_DEFAULT_HARD_TIMEOUT_CONSTANT)
+				   .setIdleTimeout(FLOWMOD_DEFAULT_IDLE_TIMEOUT_CONSTANT)
 				   .setPriority(FLOWMOD_DEFAULT_PRIORITY)
 				   .setBufferId(OFBufferId.NO_BUFFER);
 				sw.write(fmb.build());	
@@ -260,6 +263,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 					
 					fmb.setFlags(sfmf)
 					   .setActions(actions)
+					   .setTableId(Provider.FLOW_TABLE_ID)
 					   .setCookie(cookie)
 					   .setMatch(creatematchFromMPLS(sw, label))
 					   .setHardTimeout(FLOWMOD_DEFAULT_HARD_TIMEOUT)
@@ -292,6 +296,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 					sfmf.add(OFFlowModFlags.SEND_FLOW_REM);
 					
 					fmb.setFlags(sfmf)
+					   .setTableId(Provider.FLOW_TABLE_ID)
 					   .setActions(actions)
 					   .setCookie(cookie)
 					   .setMatch(creatematchFromMPLS(sw, label))
@@ -572,7 +577,24 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 		}
 		return mb.build();
 	}
-
+	protected void doPacketOut(SwitchPort switchPort, byte[] data) {
+		
+		IOFSwitch sw = switchService.getActiveSwitch(switchPort.getSwitchDPID());
+		OFPort port = switchPort.getPort();
+		
+		OFPacketOut.Builder pob = sw.getOFFactory().buildPacketOut();
+		
+		List<OFAction> actions = new ArrayList<OFAction>();
+		actions.add(sw.getOFFactory().actions().output(port, Integer.MAX_VALUE));
+		
+		pob.setActions(actions)
+		   .setBufferId(OFBufferId.NO_BUFFER)
+		   .setData(data)
+		   .setInPort(OFPort.CONTROLLER);
+		
+		sw.write(pob.build());
+	
+	}
 	/**
 	 * Creates a OFPacketOut with the OFPacketIn data that is flooded on all ports unless
 	 * the port is blocked, in which case the packet will be dropped.
@@ -583,36 +605,16 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 	protected void doFlood(IOFSwitch sw, OFPacketIn pi, FloodlightContext cntx) {
 		OFPort inPort = (pi.getVersion().compareTo(OFVersion.OF_12) < 0 ? pi.getInPort() : pi.getMatch().get(MatchField.IN_PORT));
 		// Set Action to flood
-		OFPacketOut.Builder pob = sw.getOFFactory().buildPacketOut();
-		List<OFAction> actions = new ArrayList<OFAction>();
-		Set<OFPort> broadcastPorts = this.topologyService.getSwitchBroadcastPorts(sw.getId());
-		
-		if (broadcastPorts == null) {
-			log.debug("BroadcastPorts returned null. Assuming single switch w/no links.");
-			/* Must be a single-switch w/no links */
-			broadcastPorts = Collections.singleton(OFPort.FLOOD);
-		}
-		
-		for (OFPort p : broadcastPorts) {
-			if (p.equals(inPort)) continue;
-			actions.add(sw.getOFFactory().actions().output(p, Integer.MAX_VALUE));
-		}
-		pob.setActions(actions);
-		pob.setBufferId(OFBufferId.NO_BUFFER);
-		pob.setInPort(inPort);
-		pob.setData(pi.getData());
-
-		try {
-			if (log.isTraceEnabled()) {
-				log.trace("Writing flood PacketOut switch={} packet-in={} packet-out={}",
-						new Object[] {sw, pi, pob.build()});
+		SwitchPort inSwitchPort = new SwitchPort(sw.getId(),inPort);
+		Collection<? extends IDevice> tmp = deviceManagerService.getAllDevices();
+		for (IDevice d : tmp) {
+			SwitchPort[] switchPorts = d.getAttachmentPoints();
+			for (SwitchPort switchPort : switchPorts) {
+				if (!switchPort.equals(inSwitchPort)) {
+					doPacketOut(switchPort, pi.getData());
+				}
 			}
-			messageDamper.write(sw, pob.build());
-		} catch (IOException e) {
-			log.error("Failure writing PacketOut switch={} packet-in={} packet-out={}",
-					new Object[] {sw, pi, pob.build()}, e);
 		}
-
 	}
 	/**
 	 * 

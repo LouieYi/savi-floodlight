@@ -28,6 +28,7 @@ public class BindingManager {
 	public static final byte FAIL = 1;
 	public static final byte NO_EXIST = 2;
 
+	
 	public BindingManager() {
 		ipv4Binding = new ConcurrentHashMap<>();
 		ipv6Binding = new ConcurrentHashMap<>();

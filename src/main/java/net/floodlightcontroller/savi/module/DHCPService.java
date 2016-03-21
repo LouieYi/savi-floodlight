@@ -104,7 +104,7 @@ public class DHCPService extends SAVIBaseService {
 		IPv4 ipv4 = (IPv4)eth.getPayload();
 		IPv4Address ipv4Address = ipv4.getSourceAddress();
 		
-		
+		log.info("OFFERs");
 		
 		if(!pool.isContain(ipv4Address)){
 			Binding<IPv4Address> binding = new Binding<>();

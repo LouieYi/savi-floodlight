@@ -96,7 +96,9 @@ public class DHCPv6Service extends SAVIBaseService {
 		IPv6Address ipv6Address = ipv6.getSourceAddress();
 		int id = dhcpv6.getTransactionId();
 		log.info("ADV "+id);
-		if(!pool.isContain(ipv6Address)){
+		
+		actions.add(ActionFactory.getCheckIPv6Binding(switchPort, eth.getSourceMACAddress(), ipv6Address));
+		if(!pool.isContain(ipv6Address)&&!saviProvider.pushActions(actions)){
 			Binding<IPv6Address> binding = new Binding<>();
 			
 			binding.setSwitchPort(switchPort);
@@ -109,6 +111,7 @@ public class DHCPv6Service extends SAVIBaseService {
 			actions.add(ActionFactory.getBindIPv6Action(binding));
 		}
 		
+		actions.clear();
 		actions.add(ActionFactory.getFloodAction(switchPort.getSwitchDPID(), switchPort.getPort(), eth));
 		saviProvider.pushActions(actions);
 		return RoutingAction.NONE;

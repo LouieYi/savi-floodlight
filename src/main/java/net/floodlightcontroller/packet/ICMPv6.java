@@ -25,6 +25,7 @@ public class ICMPv6 extends BasePacket {
 	protected boolean overrideFlag;
 	protected List<ICMPv6Option> options = null;
 	protected IPv6Address targetAddress;
+	protected byte[] cache;
 	protected static final Map<Byte, Integer> paddingMap;
 	
 	private static final byte ROUTER_FLAG_MASK = (byte)0x80;
@@ -103,6 +104,7 @@ public class ICMPv6 extends BasePacket {
 	@Override
 	public byte[] serialize() {
 		// TODO Auto-generated method stub
+		/*
 		int length = 4;
 		int padding = 0;
 		if(paddingMap.containsKey(this.icmpv6Type)){
@@ -130,13 +132,18 @@ public class ICMPv6 extends BasePacket {
 		for(ICMPv6Option option:options){
 			bb.put(option.serilize());
 		}
-		return data;
+		*/
+		return cache;
 	}
 
 	@Override
 	public IPacket deserialize(byte[] data, int offset, int length) throws PacketParsingException {
 		// TODO Auto-generated method stub
-
+		cache = new byte[length];	
+		for(int i=0;i<length;i++){
+			cache[i] = data[offset+i];
+		}
+		
 		ByteBuffer bb = ByteBuffer.wrap(data, offset, length);
 		this.routerFlag = false;
 		this.overrideFlag = false;
