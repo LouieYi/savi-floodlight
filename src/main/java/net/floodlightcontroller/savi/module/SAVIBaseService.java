@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.projectfloodlight.openflow.protocol.match.Match;
 import org.slf4j.Logger;
@@ -14,6 +16,7 @@ import net.floodlightcontroller.core.module.FloodlightModuleContext;
 import net.floodlightcontroller.core.module.FloodlightModuleException;
 import net.floodlightcontroller.core.module.IFloodlightModule;
 import net.floodlightcontroller.core.module.IFloodlightService;
+import net.floodlightcontroller.core.util.SingletonTask;
 import net.floodlightcontroller.devicemanager.SwitchPort;
 import net.floodlightcontroller.packet.Ethernet;
 import net.floodlightcontroller.routing.IRoutingDecision.RoutingAction;
@@ -34,7 +37,7 @@ public abstract class SAVIBaseService implements SAVIService, IFloodlightModule{
 	IFloodlightProviderService floodlightProvider;
 	IThreadPoolService threadPoolService;
 	SAVIProviderService	saviProvider;
-	
+	SingletonTask deadlineTimer;
 	@Override
 	public void pushActins(List<Action> actions) {
 		// TODO Auto-generated method stub
@@ -115,6 +118,20 @@ public abstract class SAVIBaseService implements SAVIService, IFloodlightModule{
 	public void startUp(FloodlightModuleContext context) throws FloodlightModuleException {
 		// TODO Auto-generated method stub
 		saviProvider.addSAVIService(this);
+		
+		ScheduledExecutorService ses = threadPoolService.getScheduledExecutor();
+		
+		deadlineTimer = new SingletonTask(ses, new Runnable() {
+			
+			@Override
+			public void run() {
+				// TODO Auto-generated method stub
+				checkDeadline();
+				deadlineTimer.reschedule(1, TimeUnit.SECONDS);
+			}
+		});
+		deadlineTimer.reschedule(1, TimeUnit.SECONDS);
+		
 		startUpService();
 	}
 
@@ -125,6 +142,9 @@ public abstract class SAVIBaseService implements SAVIService, IFloodlightModule{
 	@Override
 	public abstract RoutingAction process(SwitchPort switchPort, Ethernet eth) ;
 	
+	public void checkDeadline(){
+		
+	}
 	
 
 }

@@ -162,7 +162,6 @@ public abstract class ForwardingBase implements IOFMessageListener {
 
 	@Override
 	public Command receive(IOFSwitch sw, OFMessage msg, FloodlightContext cntx) {
-		log.info("BASE_PKT_IN");
 		switch (msg.getType()) {
 		case PACKET_IN:
 			IRoutingDecision decision = null;

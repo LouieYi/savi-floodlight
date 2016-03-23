@@ -288,5 +288,18 @@ public class DHCPService extends SAVIBaseService {
 		// TODO Auto-generated method stub
 		return processDHCP(switchPort, eth);
 	}
-
+	
+	@Override
+	public void checkDeadline(){
+		List<Action> actions = new ArrayList<>();
+		for(Binding<IPv4Address> binding:pool.getAllBindings()){
+			if(binding.isLeaseExpired()){
+				actions.add(ActionFactory.getUnbindIPv4Action(binding.getAddress(), binding));
+				pool.delBinding(binding.getAddress());
+			}
+		}
+		if(actions.size()>0){
+			saviProvider.pushActions(actions);
+		}
+	}
 }

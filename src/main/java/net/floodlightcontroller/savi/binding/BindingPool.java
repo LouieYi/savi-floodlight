@@ -1,5 +1,7 @@
 package net.floodlightcontroller.savi.binding;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -117,6 +119,10 @@ public class BindingPool<T extends IPAddress<?>>{
 	
 	public boolean check(T address, MacAddress macAddress, SwitchPort switchPort){
 		return check(macAddress, switchPort)&&check(address, macAddress);
+	}
+	
+	public Collection<Binding<T>> getAllBindings(){
+		return bindingTable.values();
 	}
 }
 

@@ -62,7 +62,7 @@ public abstract class Action {
 		public static UnbindIPv4Action getUnbindIPv4Action(IPv4Address ipv4Address, Binding<IPv4Address> binding){
 			return new UnbindIPv4Action(ipv4Address, binding);
 		}
-		public static UnbindIPv6Action getUnbindIPv6ACtion(IPv6Address ipv6Address, Binding<IPv6Address> binding) {
+		public static UnbindIPv6Action getUnbindIPv6Action(IPv6Address ipv6Address, Binding<IPv6Address> binding) {
 			return new UnbindIPv6Action(ipv6Address, binding);
 		}
 		public static ClearIPv4BindingAction getClearIPv4BindingAction(IPv4Address ipv4Address) {

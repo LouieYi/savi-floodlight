@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.projectfloodlight.openflow.protocol.OFFactories;
 import org.projectfloodlight.openflow.protocol.OFFlowAdd;
+import org.projectfloodlight.openflow.protocol.OFFlowDelete;
 import org.projectfloodlight.openflow.protocol.OFMessage;
 import org.projectfloodlight.openflow.protocol.OFPacketIn;
 import org.projectfloodlight.openflow.protocol.OFPacketOut;
@@ -53,6 +54,7 @@ import net.floodlightcontroller.routing.IRoutingDecision;
 import net.floodlightcontroller.routing.IRoutingDecision.RoutingAction;
 import net.floodlightcontroller.routing.RoutingDecision;
 import net.floodlightcontroller.savi.action.Action;
+import net.floodlightcontroller.savi.action.Action.ActionFactory;
 import net.floodlightcontroller.savi.action.BindIPv4Action;
 import net.floodlightcontroller.savi.action.BindIPv6Action;
 import net.floodlightcontroller.savi.action.CheckIPv4BindingAction;
@@ -61,7 +63,6 @@ import net.floodlightcontroller.savi.action.FloodAction;
 import net.floodlightcontroller.savi.action.PacketOutAction;
 import net.floodlightcontroller.savi.action.UnbindIPv4Action;
 import net.floodlightcontroller.savi.action.UnbindIPv6Action;
-import net.floodlightcontroller.savi.action.Action.ActionFactory;
 import net.floodlightcontroller.savi.binding.Binding;
 import net.floodlightcontroller.savi.service.SAVIProviderService;
 import net.floodlightcontroller.savi.service.SAVIService;
@@ -455,6 +456,7 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 		mb.setExact(MatchField.ETH_SRC, binding.getMacAddress());
 		mb.setExact(MatchField.ETH_TYPE, EthType.IPv4);
 		mb.setExact(MatchField.IPV4_SRC, (IPv4Address)binding.getAddress());
+		mb.setExact(MatchField.IN_PORT, binding.getSwitchPort().getPort());
 		
 		List<OFInstruction> instructions = new ArrayList<>();
 		instructions.add(OFFactories.getFactory(OFVersion.OF_13).instructions().gotoTable(FLOW_TABLE_ID));
@@ -471,6 +473,7 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 		mb.setExact(MatchField.ETH_SRC, binding.getMacAddress());
 		mb.setExact(MatchField.ETH_TYPE, EthType.IPv6);
 		mb.setExact(MatchField.IPV6_SRC, (IPv6Address)binding.getAddress());
+		mb.setExact(MatchField.IN_PORT, binding.getSwitchPort().getPort());
 		
 		List<OFInstruction> instructions = new ArrayList<>();
 		instructions.add(OFFactories.getFactory(OFVersion.OF_13).instructions().gotoTable(FLOW_TABLE_ID));
@@ -479,10 +482,27 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 	
 	protected void doUnbindIPv4(UnbindIPv4Action action) {
 		manager.delBinding(action.getIpv4Address());
+		Binding<?> binding = action.getBinding();
+		Match.Builder mb = OFFactories.getFactory(OFVersion.OF_13).buildMatch();
+		mb.setExact(MatchField.ETH_SRC, binding.getMacAddress());
+		mb.setExact(MatchField.ETH_TYPE, EthType.IPv4);
+		mb.setExact(MatchField.IPV4_SRC, (IPv4Address)binding.getAddress());
+		mb.setExact(MatchField.IN_PORT, binding.getSwitchPort().getPort());
+		
+		doFlowRemove(binding.getSwitchPort().getSwitchDPID(), TableId.of(0), mb.build());
 	}
 	
 	protected void doUnbindIPv6(UnbindIPv6Action action) {
 		manager.delBinding(action.getIPv6Address());
+		
+		Binding<?> binding = action.getBinding();
+		Match.Builder mb = OFFactories.getFactory(OFVersion.OF_13).buildMatch();
+		mb.setExact(MatchField.ETH_SRC, binding.getMacAddress());
+		mb.setExact(MatchField.ETH_TYPE, EthType.IPv6);
+		mb.setExact(MatchField.IPV6_SRC, (IPv6Address)binding.getAddress());
+		mb.setExact(MatchField.IN_PORT, binding.getSwitchPort().getPort());
+		
+		doFlowRemove(binding.getSwitchPort().getSwitchDPID(), TableId.of(0), mb.build());
 	}
 	
 	protected boolean doCheckIPv4BInding(CheckIPv4BindingAction action){
@@ -516,5 +536,21 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 			sw.write(fab.build());
 		}
 		
+	}
+	
+	protected void doFlowRemove(DatapathId switchId, TableId tableId, Match match) {
+		OFFlowDelete.Builder fdb = OFFactories.getFactory(OFVersion.OF_13).buildFlowDelete();
+		
+		fdb.setMatch(match)
+		   .setCookie(cookie)
+		   .setTableId(tableId)
+		   .setPriority(BINDING_LAYER_PRIORITY)
+		   .setBufferId(OFBufferId.NO_BUFFER);
+		
+		IOFSwitch sw = switchService.getSwitch(switchId);
+		
+		if(sw!= null){
+			sw.write(fdb.build());
+		}
 	}
 }

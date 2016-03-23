@@ -14,6 +14,7 @@ import org.projectfloodlight.openflow.types.EthType;
 import org.projectfloodlight.openflow.types.IPv6Address;
 import org.projectfloodlight.openflow.types.IpProtocol;
 import org.projectfloodlight.openflow.types.MacAddress;
+
 import net.floodlightcontroller.core.util.SingletonTask;
 import net.floodlightcontroller.devicemanager.SwitchPort;
 import net.floodlightcontroller.packet.Ethernet;
@@ -21,10 +22,10 @@ import net.floodlightcontroller.packet.ICMPv6;
 import net.floodlightcontroller.packet.IPv6;
 import net.floodlightcontroller.routing.IRoutingDecision.RoutingAction;
 import net.floodlightcontroller.savi.action.Action;
+import net.floodlightcontroller.savi.action.Action.ActionFactory;
 import net.floodlightcontroller.savi.action.ClearIPv6BindingAction;
 import net.floodlightcontroller.savi.action.ClearPortBindingAction;
 import net.floodlightcontroller.savi.action.ClearSwitchBindingAction;
-import net.floodlightcontroller.savi.action.Action.ActionFactory;
 import net.floodlightcontroller.savi.binding.Binding;
 import net.floodlightcontroller.savi.binding.BindingPool;
 import net.floodlightcontroller.savi.binding.BindingStatus;
@@ -224,5 +225,18 @@ public class SLAACService extends SAVIBaseService {
 		// TODO Auto-generated method stub
 		return processICMPv6(switchPort, eth);
 	}
-
+	
+	@Override
+	public void checkDeadline(){
+		List<Action> actions = new ArrayList<>();
+		for(Binding<IPv6Address> binding:pool.getAllBindings()){
+			if(binding.isLeaseExpired()){
+				actions.add(ActionFactory.getUnbindIPv6Action(binding.getAddress(), binding));
+				pool.delBinding(binding.getAddress());
+			}
+		}
+		if(actions.size()>0){
+			saviProvider.pushActions(actions);
+		}
+	}
 }
