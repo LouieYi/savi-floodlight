@@ -3,8 +3,6 @@ package net.floodlightcontroller.savi.action;
 import java.util.HashMap;
 import java.util.Map;
 
-import net.floodlightcontroller.devicemanager.SwitchPort;
-
 public class ConfigureAction extends Action {
 	Map<String, Object> configureMap;
 	public ConfigureAction() {

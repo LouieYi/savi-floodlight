@@ -3,9 +3,13 @@ package net.floodlightcontroller.savi;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Future;
 
+import org.apache.derby.iapi.services.io.FormatableInstanceGetter;
 import org.projectfloodlight.openflow.protocol.OFFactories;
 import org.projectfloodlight.openflow.protocol.OFFlowAdd;
 import org.projectfloodlight.openflow.protocol.OFFlowDelete;
@@ -21,6 +25,7 @@ import org.projectfloodlight.openflow.protocol.match.Match;
 import org.projectfloodlight.openflow.protocol.match.MatchField;
 import org.projectfloodlight.openflow.types.DatapathId;
 import org.projectfloodlight.openflow.types.EthType;
+import org.projectfloodlight.openflow.types.IPAddress;
 import org.projectfloodlight.openflow.types.IPv4Address;
 import org.projectfloodlight.openflow.types.IPv6Address;
 import org.projectfloodlight.openflow.types.MacAddress;
@@ -28,6 +33,7 @@ import org.projectfloodlight.openflow.types.OFBufferId;
 import org.projectfloodlight.openflow.types.OFPort;
 import org.projectfloodlight.openflow.types.TableId;
 import org.projectfloodlight.openflow.types.U64;
+import org.python.antlr.ast.Str;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,6 +56,7 @@ import net.floodlightcontroller.packet.ARP;
 import net.floodlightcontroller.packet.Ethernet;
 import net.floodlightcontroller.packet.IPv4;
 import net.floodlightcontroller.packet.IPv6;
+import net.floodlightcontroller.restserver.IRestApiService;
 import net.floodlightcontroller.routing.IRoutingDecision;
 import net.floodlightcontroller.routing.IRoutingDecision.RoutingAction;
 import net.floodlightcontroller.routing.RoutingDecision;
@@ -64,17 +71,41 @@ import net.floodlightcontroller.savi.action.PacketOutAction;
 import net.floodlightcontroller.savi.action.UnbindIPv4Action;
 import net.floodlightcontroller.savi.action.UnbindIPv6Action;
 import net.floodlightcontroller.savi.binding.Binding;
+import net.floodlightcontroller.savi.rest.SAVIRest.SAVIRoutable;
 import net.floodlightcontroller.savi.service.SAVIProviderService;
 import net.floodlightcontroller.savi.service.SAVIService;
+import net.floodlightcontroller.storage.IPredicate;
+import net.floodlightcontroller.storage.IQuery;
+import net.floodlightcontroller.storage.IResultSet;
+import net.floodlightcontroller.storage.IRowMapper;
+import net.floodlightcontroller.storage.IStorageExceptionHandler;
+import net.floodlightcontroller.storage.IStorageSourceListener;
+import net.floodlightcontroller.storage.IStorageSourceService;
+import net.floodlightcontroller.storage.RowOrdering;
+import net.floodlightcontroller.storage.StorageSourceNotification;
 import net.floodlightcontroller.topology.ITopologyService;
 
 public class Provider implements IFloodlightModule,
-IOFSwitchListener, IOFMessageListener, SAVIProviderService {
+IOFSwitchListener, IOFMessageListener, SAVIProviderService, IStorageSourceListener {
 	
 	static final int PROTOCOL_LAYER_PRIORITY = 1;
 	static final int SERVICE_LAYER_PRIORITY = 2;
 	static final int BINDING_LAYER_PRIORITY = 3;
 	static final int EXTENSION_LAYER_PRIORITY = 4;
+	
+	public static final String ID_COLUMN = "id";
+	public static final String SWITCH_COLUMN = "dpid";
+	public static final String PORT_COLUMN = "port";
+	public static final String MAC_COLUMN = "mac";
+	public static final String IPv4_COLUMN = "ipv4";
+	public static final String IPv6_COLUMN = "ipv6";
+	public static final String BINGDING_TIME_COLUMN = "binding-time";
+	public static final String LEASE_TIME_COLUMN = "lease-time";
+	
+	public static final String IPv4_BINDING_TABLE = "ipv4-binding";
+	public static final String IPv6_BINDING_TABLE = "ipv6-binding";
+	public static final String SECURITY_PORT_TABLE = "security-port";
+	
 	
 	static final Logger log = LoggerFactory.getLogger(SAVIProviderService.class);
 	
@@ -82,6 +113,8 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 	protected IOFSwitchService switchService;
 	protected IDeviceService deviceService;
 	protected ITopologyService topologyService;
+	protected IStorageSourceService storageSourceService;
+	protected IRestApiService restApiService;
 	
 	private List<SAVIService> saviServices;
 	private BindingManager manager;
@@ -91,12 +124,13 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 	
 	public static final int SAVI_PROVIDER_APP_ID = 1000;
 	public static final TableId FLOW_TABLE_ID = TableId.of(1);
+	
+	public static int securityTableCounter = 0;
+	public static final U64 cookie = AppCookie.makeCookie(SAVI_PROVIDER_APP_ID, 0);
+	
 	static {
 		AppCookie.registerApp(SAVI_PROVIDER_APP_ID, "Forwarding");
 	}
-	public static final U64 cookie = AppCookie.makeCookie(SAVI_PROVIDER_APP_ID, 0);
-	
-	
 	
 	private void processPacketIn(IOFSwitch sw, OFPacketIn pi, FloodlightContext cntx) {
 		OFPort inPort = (pi.getVersion().compareTo(OFVersion.OF_12) < 0 ? pi.getInPort()
@@ -232,16 +266,19 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 		dependencies.add(IOFSwitchService.class);
 		dependencies.add(IDeviceService.class);
 		dependencies.add(ITopologyService.class);
+		dependencies.add(IStorageSourceService.class);
 		return dependencies;
 	}
 
 	@Override
 	public void init(FloodlightModuleContext context) throws FloodlightModuleException {
 		// TODO Auto-generated method stub
-		floodlightProvider 	= context.getServiceImpl(IFloodlightProviderService.class);
-		switchService 	   	= context.getServiceImpl(IOFSwitchService.class);
-		deviceService 	   	= context.getServiceImpl(IDeviceService.class);
-		topologyService 	= context.getServiceImpl(ITopologyService.class);
+		floodlightProvider 	 = context.getServiceImpl(IFloodlightProviderService.class);
+		switchService 	   	 = context.getServiceImpl(IOFSwitchService.class);
+		deviceService 	   	 = context.getServiceImpl(IDeviceService.class);
+		topologyService 	 = context.getServiceImpl(ITopologyService.class);
+		storageSourceService = context.getServiceImpl(IStorageSourceService.class);
+		restApiService = context.getServiceImpl(IRestApiService.class);
 		
 		saviServices 		= new ArrayList<>();
 		manager 			= new BindingManager();
@@ -264,6 +301,16 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 		floodlightProvider.addOFMessageListener(OFType.PACKET_IN, this);
 		floodlightProvider.addOFMessageListener(OFType.ERROR, this);
 		switchService.addOFSwitchListener(this);
+		
+		storageSourceService.createTable(IPv4_BINDING_TABLE, null);
+		storageSourceService.setTablePrimaryKeyName(IPv4_BINDING_TABLE, IPv4_COLUMN);
+		storageSourceService.createTable(IPv6_BINDING_TABLE, null);
+		storageSourceService.setTablePrimaryKeyName(IPv6_BINDING_TABLE, IPv6_COLUMN);
+		storageSourceService.createTable(SECURITY_PORT_TABLE, null);
+		storageSourceService.setTablePrimaryKeyName(SECURITY_PORT_TABLE, ID_COLUMN);
+		
+		storageSourceService.addListener(SECURITY_PORT_TABLE, null);
+		
 	}
 
 	@Override
@@ -459,6 +506,9 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 		instructions.add(OFFactories.getFactory(OFVersion.OF_13).instructions().gotoTable(FLOW_TABLE_ID));
 		doFlowMod(binding.getSwitchPort().getSwitchDPID(), TableId.of(0), mb.build(), null, instructions, BINDING_LAYER_PRIORITY);
 		
+		
+		addIPv4BindingToStorageSource(binding);
+		
 	}
 	
 	protected void doBindIPv6(BindIPv6Action action){
@@ -475,6 +525,8 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 		List<OFInstruction> instructions = new ArrayList<>();
 		instructions.add(OFFactories.getFactory(OFVersion.OF_13).instructions().gotoTable(FLOW_TABLE_ID));
 		doFlowMod(binding.getSwitchPort().getSwitchDPID(), TableId.of(0), mb.build(), null, instructions, BINDING_LAYER_PRIORITY);
+	
+		addIPv6BindingToStorageSource(binding);
 	}
 	
 	protected void doUnbindIPv4(UnbindIPv4Action action) {
@@ -487,6 +539,8 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 		mb.setExact(MatchField.IN_PORT, binding.getSwitchPort().getPort());
 		
 		doFlowRemove(binding.getSwitchPort().getSwitchDPID(), TableId.of(0), mb.build());
+	
+		delIPv4BindingToStorageSource(binding);
 	}
 	
 	protected void doUnbindIPv6(UnbindIPv6Action action) {
@@ -500,6 +554,8 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 		mb.setExact(MatchField.IN_PORT, binding.getSwitchPort().getPort());
 		
 		doFlowRemove(binding.getSwitchPort().getSwitchDPID(), TableId.of(0), mb.build());
+	
+		delIPv6BindingFromStorageSource(binding);
 	}
 	
 	protected boolean doCheckIPv4BInding(CheckIPv4BindingAction action){
@@ -552,4 +608,46 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 			sw.write(fdb.build());
 		}
 	}
+	
+	protected synchronized void addIPv4BindingToStorageSource(Binding<?> binding){
+		Map<String, Object> entry = new HashMap<>();
+		entry.put(IPv4_COLUMN, binding.getAddress().toString());
+		entry.put(MAC_COLUMN, binding.getMacAddress().toString());
+		entry.put(BINGDING_TIME_COLUMN, ""+binding.getBindingTime());
+		entry.put(LEASE_TIME_COLUMN, ""+binding.getLeaseTime());
+		entry.put(SWITCH_COLUMN, binding.getSwitchPort().getSwitchDPID().toString());
+		entry.put(PORT_COLUMN, binding.getSwitchPort().getPort().toString());
+		storageSourceService.insertRow(IPv4_BINDING_TABLE, entry);
+	}
+	
+	protected synchronized void addIPv6BindingToStorageSource(Binding<?> binding){
+		Map<String, Object> entry = new HashMap<>();
+		entry.put(IPv6_COLUMN, binding.getAddress().toString());
+		entry.put(MAC_COLUMN, binding.getMacAddress().toString());
+		entry.put(BINGDING_TIME_COLUMN, ""+binding.getBindingTime());
+		entry.put(LEASE_TIME_COLUMN, ""+binding.getLeaseTime());
+		entry.put(SWITCH_COLUMN, binding.getSwitchPort().getSwitchDPID().toString());
+		entry.put(PORT_COLUMN, binding.getSwitchPort().getPort().toString());
+		storageSourceService.insertRow(IPv6_BINDING_TABLE, entry);
+	}
+
+	protected synchronized void delIPv4BindingToStorageSource(Binding<?> binding){
+		storageSourceService.deleteRow(IPv4_BINDING_TABLE, binding.getAddress().toString());
+	}
+	protected synchronized void delIPv6BindingFromStorageSource(Binding<?> binding){
+		storageSourceService.deleteRow(IPv6_BINDING_TABLE, binding.getAddress().toString());
+	}
+	
+	@Override
+	public void rowsModified(String tableName, Set<Object> rowKeys) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void rowsDeleted(String tableName, Set<Object> rowKeys) {
+		// TODO Auto-generated method stub
+		
+	}
+
 }

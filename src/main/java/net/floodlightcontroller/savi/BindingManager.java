@@ -15,6 +15,7 @@ import net.floodlightcontroller.devicemanager.SwitchPort;
 import net.floodlightcontroller.savi.binding.Binding;
 
 public class BindingManager {
+	
 	protected Map<IPv4Address, Binding<IPv4Address>> ipv4Binding;
 	protected Map<IPv6Address, Binding<IPv6Address>> ipv6Binding;
 	protected Map<MacAddress, SwitchPort> hardwareBinding;
