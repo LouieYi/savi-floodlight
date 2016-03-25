@@ -215,7 +215,7 @@ public class DHCPv6Service extends SAVIBaseService {
 		if(pool.isContain(ipv6Address)){
 			pool.delBinding(ipv6Address);
 			
-			actions.add(ActionFactory.getUnbindIPv6ACtion(ipv6Address, pool.getBinding(ipv6Address)));
+			actions.add(ActionFactory.getUnbindIPv6Action(ipv6Address, pool.getBinding(ipv6Address)));
 			
 			actions.add(ActionFactory.getPacketOutAction(eth, pool.getSwitchPort(macAddress), OFPort.CONTROLLER));
 			saviProvider.pushActions(actions);

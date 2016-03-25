@@ -5,6 +5,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.projectfloodlight.openflow.types.DatapathId;
 
@@ -18,8 +20,8 @@ public class MPLSLabelManager {
 	Map<SwitchPort, Integer> labelMap;  // Unavailable labels
 	
 	static {
-		switchPortMap = new HashMap<>();
-		labelQueue = new LinkedList<>();
+		switchPortMap = new ConcurrentHashMap<>();
+		labelQueue = new ConcurrentLinkedQueue<>();
 		for(int i = 1000; i<MAX_LABEL_NUMBER; i++){
 			labelQueue.add(i);
 		}
@@ -28,7 +30,7 @@ public class MPLSLabelManager {
 	 * Simple constructor 
 	 */
 	public MPLSLabelManager(){
-		labelMap = new HashMap<>();
+		labelMap = new ConcurrentHashMap<>();
 	}
 	
 	/**

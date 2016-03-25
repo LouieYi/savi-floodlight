@@ -321,9 +321,6 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 	}
 	
 	protected RoutingAction process(SwitchPort switchPort, Ethernet eth){
-		if(eth.getDestinationMACAddress().isBroadcast()){
-			return RoutingAction.FORWARD_OR_FLOOD;
-		}
 		MacAddress macAddress = eth.getSourceMACAddress();
 		if(eth.getEtherType() == EthType.IPv4){
 			IPv4 ipv4 = (IPv4)eth.getPayload();
@@ -508,9 +505,11 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService {
 	protected boolean doCheckIPv4BInding(CheckIPv4BindingAction action){
 		return manager.check(action.getSwitchPort(), action.getMacAddress(), action.getIPv4Address());
 	}
+	
 	protected boolean doCheckIPv6Binding(CheckIPv6BindingAction action) {
 		return manager.check(action.getSwitchPort(), action.getMacAddress(), action.getIPv6Address());
 	}
+	
 	protected void doFlowMod(DatapathId switchId,TableId tableId,Match match, List<OFAction> actions, List<OFInstruction> instructions,int priority){
 		OFFlowAdd.Builder fab = OFFactories.getFactory(OFVersion.OF_13).buildFlowAdd();
 		
