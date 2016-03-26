@@ -1,6 +1,8 @@
 package net.floodlightcontroller.savi;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -213,4 +215,12 @@ public class BindingManager {
 			ipv6SwitchBinding.remove(dpid);
 		}
 	}
+	
+	public List<Binding<?>> getBindings(){
+		List<Binding<?>> bindingList = new ArrayList<>();
+		bindingList.addAll(ipv4Binding.values());
+		bindingList.addAll(ipv6Binding.values());
+		return bindingList;
+	}
+	
 }

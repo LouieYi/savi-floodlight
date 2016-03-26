@@ -29,7 +29,18 @@ public class Binding<T extends IPAddress<?>> {
 		this.bindingTime = 0;
 		this.leaseTime = 0;
 	}
-	
+	@Override
+	public String toString(){
+		
+		return "{"+"dpid:"+switchPort.getSwitchDPID().toString()
+				  +",port:"+switchPort.getPort().toString()
+				  +",mac:"+macAddress.toString()
+				  +",ip:"+address.toString()
+				  +",id:"+transactionId
+				  +",lease-time:"+leaseTime
+				  +",binding-time:"+bindingTime
+				  +"}";
+	}
 	public boolean check(MacAddress macAddress, T address){
 		return this.macAddress.equals(macAddress)&&this.address.equals(address);
 	}

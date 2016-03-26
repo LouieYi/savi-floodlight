@@ -135,8 +135,8 @@ public class SwitchPort {
 
     @Override
     public String toString() {
-        return "SwitchPort [switchDPID=" + switchDPID.toString() +
-               ", port=" + port + ", errorStatus=" + errorStatus + "]";
+        return "{dpid:" + switchDPID.toString() +
+               ", port:" + port + "}";
     }
 
 }
