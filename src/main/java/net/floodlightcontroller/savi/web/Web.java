@@ -34,7 +34,7 @@ public class Web implements IFloodlightModule, RestletRoutable {
 	@Override
 	public String basePath() {
 		// TODO Auto-generated method stub
-		return "/savi/";
+		return "/savi";
 	}
 
 	@Override

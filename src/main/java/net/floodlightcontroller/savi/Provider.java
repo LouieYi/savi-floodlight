@@ -67,14 +67,24 @@ import net.floodlightcontroller.savi.action.PacketOutAction;
 import net.floodlightcontroller.savi.action.UnbindIPv4Action;
 import net.floodlightcontroller.savi.action.UnbindIPv6Action;
 import net.floodlightcontroller.savi.binding.Binding;
+import net.floodlightcontroller.savi.rest.SAVIRest.SAVIRoutable;
+import net.floodlightcontroller.savi.rest.SAVIRestRoute;
 import net.floodlightcontroller.savi.service.SAVIProviderService;
 import net.floodlightcontroller.savi.service.SAVIService;
 import net.floodlightcontroller.storage.IStorageSourceService;
 import net.floodlightcontroller.topology.ITopologyService;
 
+/**
+ * Provider
+ * @author zhouyu
+ *
+ */
 public class Provider implements IFloodlightModule,
 IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 	
+	/**
+	 * Priority
+	 */
 	static final int PROTOCOL_LAYER_PRIORITY = 1;
 	static final int SERVICE_LAYER_PRIORITY = 2;
 	static final int BINDING_LAYER_PRIORITY = 3;
@@ -82,15 +92,24 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 	
 	static final Logger log = LoggerFactory.getLogger(SAVIProviderService.class);
 	
+	/**
+	 * Floodlight service
+	 */
 	protected IFloodlightProviderService floodlightProvider;
 	protected IOFSwitchService switchService;
 	protected IDeviceService deviceService;
 	protected ITopologyService topologyService;
 	protected IRestApiService restApiService;
 	
+	/**
+	 * Service
+	 */
 	private List<SAVIService> saviServices;
 	private BindingManager manager;
 	
+	/**
+	 * rules 
+	 */
 	private List<Match> serviceRules;
 	private List<Match> protocolRules;
 	private Set<SwitchPort> securityPort;
@@ -108,18 +127,29 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 	}
 	public static final U64 cookie = AppCookie.makeCookie(SAVI_PROVIDER_APP_ID, 0);
 	
+	/**
+	 * Process packet in message.
+	 * @param sw
+	 * @param pi
+	 * @param cntx
+	 */
 	private void processPacketIn(IOFSwitch sw, OFPacketIn pi, FloodlightContext cntx) {
+		
 		OFPort inPort = (pi.getVersion().compareTo(OFVersion.OF_12) < 0 ? pi.getInPort()
 				: pi.getMatch().get(MatchField.IN_PORT));
+		
 		Ethernet eth = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
 		IRoutingDecision decision = IRoutingDecision.rtStore.get(cntx, IRoutingDecision.CONTEXT_DECISION);
-		SwitchPort switchPort = new SwitchPort(sw.getId(), inPort);
 		
+		SwitchPort switchPort = new SwitchPort(sw.getId(), inPort);
 		RoutingAction routingAction = null;
+		
 		if (decision == null) {
 			decision = new RoutingDecision(sw.getId(), inPort,
 					IDeviceService.fcStore.get(cntx, IDeviceService.CONTEXT_SRC_DEVICE), RoutingAction.FORWARD);
 		}
+		
+		// SAVI service process
 		for (SAVIService s : saviServices) {
 			if (s.match(eth)) {
 				routingAction = s.process(switchPort, eth);
@@ -127,6 +157,7 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 			}
 		}
 		
+		// Process
 		if(routingAction == null){
 			 routingAction = process(switchPort, eth);
 		}
@@ -138,6 +169,10 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		decision.addToContext(cntx);
 	}
 	
+	/**
+	 * Add savi servie to provider
+	 * @param service
+	 */
 	@Override
 	public void addSAVIService(SAVIService service) {
 		// TODO Auto-generated method stub
@@ -145,6 +180,10 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		serviceRules.addAll(service.getMatches());
 	}
 	
+	/**
+	 * Process actions from savi service.
+	 * @param actions
+	 */
 	@Override
 	public boolean pushActions(List<Action> actions) {
 		// TODO Auto-generated method stub
@@ -180,24 +219,39 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		return true;
 	}
 	
+	/**
+	 * 
+	 */
 	@Override
 	public String getName() {
 		// TODO Auto-generated method stub
 		return "savi";
 	}
 
+	/**
+	 * Floodlight override function
+	 */
 	@Override
 	public boolean isCallbackOrderingPrereq(OFType type, String name) {
 		// TODO Auto-generated method stub
 		return false;//(type.equals(OFType.PACKET_IN) && (name.equals("topology") || name.equals("devicemanager")));
 	}
 
+	/**
+	 * Floodlight override function
+	 */
 	@Override
 	public boolean isCallbackOrderingPostreq(OFType type, String name) {
 		// TODO Auto-generated method stub
 		return false;//type.equals(OFType.PACKET_IN) || name.equals("forwarding");
 	}
 
+	/**
+	 * Dispatch openflow message
+	 * @param sw
+	 * @param msg
+	 * @param cntx
+	 */
 	@Override
 	public Command receive(IOFSwitch sw, OFMessage msg,
 			FloodlightContext cntx) {
@@ -216,6 +270,9 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		return Command.CONTINUE;
 	}
 
+	/**
+	 * Module service
+	 */
 	@Override
 	public Collection<Class<? extends IFloodlightService>> getModuleServices() {
 		// TODO Auto-generated method stub
@@ -224,6 +281,9 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		return services;
 	}
 
+	/**
+	 * Service implementation.
+	 */
 	@Override
 	public Map<Class<? extends IFloodlightService>, IFloodlightService> getServiceImpls() {
 		// TODO Auto-generated method stub
@@ -232,6 +292,9 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		return serviceImpls;
 	}
 
+	/**
+	 * Module dependencies.
+	 */
 	@Override
 	public Collection<Class<? extends IFloodlightService>> getModuleDependencies() {
 		// TODO Auto-generated method stub
@@ -241,9 +304,13 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		dependencies.add(IDeviceService.class);
 		dependencies.add(ITopologyService.class);
 		dependencies.add(IStorageSourceService.class);
+		dependencies.add(IRestApiService.class);
 		return dependencies;
 	}
 
+	/**
+	 * Initialize module.
+	 */
 	@Override
 	public void init(FloodlightModuleContext context) throws FloodlightModuleException {
 		// TODO Auto-generated method stub
@@ -251,7 +318,7 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		switchService 	   	 = context.getServiceImpl(IOFSwitchService.class);
 		deviceService 	   	 = context.getServiceImpl(IDeviceService.class);
 		topologyService 	 = context.getServiceImpl(ITopologyService.class);
-		restApiService = context.getServiceImpl(IRestApiService.class);
+		restApiService 		 = context.getServiceImpl(IRestApiService.class);
 		
 		saviServices 		= new ArrayList<>();
 		manager 			= new BindingManager();
@@ -259,26 +326,42 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		serviceRules		= new ArrayList<>();
 		protocolRules		= new ArrayList<>();
 		
-		Match.Builder mb = OFFactories.getFactory(OFVersion.OF_13).buildMatch();
-		mb.setExact(MatchField.ETH_TYPE, EthType.IPv6);
-		protocolRules.add(mb.build());
+		{
+			Match.Builder mb = OFFactories.getFactory(OFVersion.OF_13).buildMatch();
+			mb.setExact(MatchField.ETH_TYPE, EthType.IPv6);
+			protocolRules.add(mb.build());
 		
-		mb = OFFactories.getFactory(OFVersion.OF_13).buildMatch();
-		mb.setExact(MatchField.ETH_TYPE, EthType.IPv4);
-		protocolRules.add(mb.build());
+			mb = OFFactories.getFactory(OFVersion.OF_13).buildMatch();
+			mb.setExact(MatchField.ETH_TYPE, EthType.IPv4);
+			protocolRules.add(mb.build());
+		}
+		
+		
 		
 		securityPort = new HashSet<>();
+		
+		{
+			// Pre-set security port.
+			SwitchPort switchPort = new SwitchPort(DatapathId.of(1L),OFPort.of(1));
+			securityPort.add(switchPort);
+		}
 	} 
 
+	/**
+	 * Start up module
+	 */
 	@Override
 	public void startUp(FloodlightModuleContext context) throws FloodlightModuleException {
 		// TODO Auto-generated method stub
 		floodlightProvider.addOFMessageListener(OFType.PACKET_IN, this);
 		floodlightProvider.addOFMessageListener(OFType.ERROR, this);
 		switchService.addOFSwitchListener(this);
-		
+		restApiService.addRestletRoutable(new SAVIRestRoute());
 	}
 
+	/**
+	 * Listen switch add message.
+	 */
 	@Override
 	public void switchAdded(DatapathId switchId) {
 		// TODO Auto-generated method stub
@@ -316,6 +399,9 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		}
 	}
 
+	/**
+	 * Listen switch remove message.
+	 */
 	@Override
 	public void switchRemoved(DatapathId switchId) {
 		// TODO Auto-generated method stub
@@ -344,6 +430,12 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		
 	}
 	
+	/**
+	 * Process the frame
+	 * @param switchPort
+	 * @param eth
+	 * @return routing acttion
+	 */
 	protected RoutingAction process(SwitchPort switchPort, Ethernet eth){
 		MacAddress macAddress = eth.getSourceMACAddress();
 		
@@ -406,12 +498,20 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		return null;
 	}
 	
+	/**
+	 * Do flood
+	 * @param action
+	 */
 	protected void doFlood(FloodAction action){
 		SwitchPort inSwitchPort = new SwitchPort(action.getSwitchId(), action.getInPort());
 		byte[] data = action.getEthernet().serialize();
 		doFlood(inSwitchPort, data);
 	}
-	
+	/**
+	 * Do flood.
+	 * @param inSwitchPort
+	 * @param data
+	 */
 	protected void doFlood(SwitchPort inSwitchPort, byte[] data){
 		Collection<? extends IDevice> tmp = deviceService.getAllDevices();
 		for (IDevice d : tmp) {
@@ -424,6 +524,10 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		}
 	}
 	
+	/**
+	 * Do packet out.
+	 * @param action
+	 */
 	protected void doPacketOut(PacketOutAction action) {
 		
 		doPacketOut(action.getSwitchId(),
@@ -433,6 +537,11 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 	
 	}
 	
+	/**
+	 * Do packet out
+	 * @param switchPort
+	 * @param data
+	 */
 	protected void doPacketOut(SwitchPort switchPort, byte[] data) {
 		
 		IOFSwitch sw = switchService.getActiveSwitch(switchPort.getSwitchDPID());
@@ -452,6 +561,13 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 	
 	}
 	
+	/**
+	 * Do packet out
+	 * @param switchId
+	 * @param inPort
+	 * @param outPorts
+	 * @param data
+	 */
 	protected void doPacketOut(DatapathId switchId, OFPort inPort, List<OFPort> outPorts, byte[] data) {
 		
 		IOFSwitch sw = switchService.getActiveSwitch(switchId);
@@ -471,6 +587,10 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		sw.write(pob.build());
 	}
 	
+	/**
+	 * Do bind ipv4.
+	 * @param action
+	 */
 	protected void doBindIPv4(BindIPv4Action action){
 		Binding<?> binding = action.getBinding();
 		log.info("BIND "+binding.getAddress());
@@ -489,12 +609,13 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		
 		List<OFInstruction> instructions = new ArrayList<>();
 		instructions.add(OFFactories.getFactory(OFVersion.OF_13).instructions().gotoTable(FLOW_TABLE_ID));
-		doFlowMod(binding.getSwitchPort().getSwitchDPID(), TableId.of(0), mb.build(), null, instructions, BINDING_LAYER_PRIORITY);
-		
-		
-		
+		doFlowMod(binding.getSwitchPort().getSwitchDPID(), TableId.of(0), mb.build(), null, instructions, BINDING_LAYER_PRIORITY);	
 	}
 	
+	/**
+	 * Do bind ipv6
+	 * @param action
+	 */
 	protected void doBindIPv6(BindIPv6Action action){
 		Binding<?> binding = action.getBinding();
 		log.info("BIND "+binding.getAddress().toString()+"  "+binding.getSwitchPort().getSwitchDPID());
@@ -516,6 +637,10 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 	
 	}
 	
+	/**
+	 * Do unbind ipv4.
+	 * @param action
+	 */
 	protected void doUnbindIPv4(UnbindIPv4Action action) {
 		manager.delBinding(action.getIpv4Address());
 		Binding<?> binding = action.getBinding();
@@ -529,9 +654,12 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		mb.setExact(MatchField.IN_PORT, binding.getSwitchPort().getPort());
 		
 		doFlowRemove(binding.getSwitchPort().getSwitchDPID(), TableId.of(0), mb.build());
-	
 	}
 	
+	/**
+	 * Do unbind ipv6.
+	 * @param action
+	 */
 	protected void doUnbindIPv6(UnbindIPv6Action action) {
 		manager.delBinding(action.getIPv6Address());
 		
@@ -549,14 +677,33 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 	
 	}
 	
+	/**
+	 * Do check
+	 * @param action
+	 * @return
+	 */
 	protected boolean doCheckIPv4BInding(CheckIPv4BindingAction action){
 		return manager.check(action.getSwitchPort(), action.getMacAddress(), action.getIPv4Address());
 	}
 	
+	/**
+	 * Do check
+	 * @param action
+	 * @return
+	 */
 	protected boolean doCheckIPv6Binding(CheckIPv6BindingAction action) {
 		return manager.check(action.getSwitchPort(), action.getMacAddress(), action.getIPv6Address());
 	}
 	
+	/**
+	 * Do flow modification.
+	 * @param switchId
+	 * @param tableId
+	 * @param match
+	 * @param actions
+	 * @param instructions
+	 * @param priority
+	 */
 	protected void doFlowMod(DatapathId switchId,TableId tableId,Match match, List<OFAction> actions, List<OFInstruction> instructions,int priority){
 		OFFlowAdd.Builder fab = OFFactories.getFactory(OFVersion.OF_13).buildFlowAdd();
 		
@@ -584,6 +731,12 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		
 	}
 	
+	/**
+	 * Do flow remove
+	 * @param switchId
+	 * @param tableId
+	 * @param match
+	 */
 	protected void doFlowRemove(DatapathId switchId, TableId tableId, Match match) {
 		OFFlowDelete.Builder fdb = OFFactories.getFactory(OFVersion.OF_13).buildFlowDelete();
 		
@@ -600,7 +753,9 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		}
 	}
 
-
+	/**
+	 * Add security port, called by rest api.
+	 */
 	@Override
 	public boolean addSecurityPort(SwitchPort switchPort) {
 		// TODO Auto-generated method stub
@@ -616,6 +771,9 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		return securityPort.add(switchPort);
 	}
 
+	/**
+	 * Add delete security service, called rest api.
+	 */
 	@Override
 	public boolean delSecurityPort(SwitchPort switchPort) {
 		// TODO Auto-generated method stub
@@ -626,12 +784,18 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		return securityPort.remove(switchPort);
 	}
 
+	/**
+	 * Get security ports.
+	 */
 	@Override
 	public Set<SwitchPort> getSecurityPorts() {
 		// TODO Auto-generated method stub
 		return securityPort;
 	}
 
+	/** 
+	 * Get binding entries.
+	 */
 	@Override
 	public List<Binding<?>> getBindings() {
 		// TODO Auto-generated method stub
