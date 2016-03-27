@@ -100,7 +100,9 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 	
 	public static int securityTableCounter = 0;
 	
-	
+	/**
+	 * Static cookie 
+	 */
 	static {
 		AppCookie.registerApp(SAVI_PROVIDER_APP_ID, "Forwarding");
 	}
@@ -344,6 +346,17 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 	
 	protected RoutingAction process(SwitchPort switchPort, Ethernet eth){
 		MacAddress macAddress = eth.getSourceMACAddress();
+		
+		if(securityPort.contains(switchPort)){
+			if(macAddress.isBroadcast()){
+				doFlood(switchPort, eth.serialize());
+				return RoutingAction.NONE;
+			}
+			else{
+				return RoutingAction.FORWARD_OR_FLOOD;
+			}
+		}
+		
 		if(eth.getEtherType() == EthType.IPv4){
 			IPv4 ipv4 = (IPv4)eth.getPayload();
 			IPv4Address address = ipv4.getSourceAddress();
@@ -392,13 +405,6 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		}
 		return null;
 	}
-	protected void processICMP(){
-		
-	}
-	protected void processARP(){
-		
-	}
-	
 	
 	protected void doFlood(FloodAction action){
 		SwitchPort inSwitchPort = new SwitchPort(action.getSwitchId(), action.getInPort());
@@ -471,6 +477,10 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		
 		manager.addBinding(binding);
 		
+		if(securityPort.contains(binding.getSwitchPort())){
+			return;
+		}
+		
 		Match.Builder mb = OFFactories.getFactory(OFVersion.OF_13).buildMatch();
 		mb.setExact(MatchField.ETH_SRC, binding.getMacAddress());
 		mb.setExact(MatchField.ETH_TYPE, EthType.IPv4);
@@ -490,6 +500,10 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		log.info("BIND "+binding.getAddress().toString()+"  "+binding.getSwitchPort().getSwitchDPID());
 		
 		manager.addBinding(binding);
+		
+		if(securityPort.contains(binding.getSwitchPort())){
+			return;
+		}
 		Match.Builder mb = OFFactories.getFactory(OFVersion.OF_13).buildMatch();
 		mb.setExact(MatchField.ETH_SRC, binding.getMacAddress());
 		mb.setExact(MatchField.ETH_TYPE, EthType.IPv6);
@@ -505,6 +519,9 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 	protected void doUnbindIPv4(UnbindIPv4Action action) {
 		manager.delBinding(action.getIpv4Address());
 		Binding<?> binding = action.getBinding();
+		if(securityPort.contains(binding.getSwitchPort())){
+			return;
+		}
 		Match.Builder mb = OFFactories.getFactory(OFVersion.OF_13).buildMatch();
 		mb.setExact(MatchField.ETH_SRC, binding.getMacAddress());
 		mb.setExact(MatchField.ETH_TYPE, EthType.IPv4);
@@ -519,6 +536,9 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		manager.delBinding(action.getIPv6Address());
 		
 		Binding<?> binding = action.getBinding();
+		if(securityPort.contains(binding.getSwitchPort())){
+			return;
+		}
 		Match.Builder mb = OFFactories.getFactory(OFVersion.OF_13).buildMatch();
 		mb.setExact(MatchField.ETH_SRC, binding.getMacAddress());
 		mb.setExact(MatchField.ETH_TYPE, EthType.IPv6);
@@ -596,7 +616,6 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		return securityPort.add(switchPort);
 	}
 
-
 	@Override
 	public boolean delSecurityPort(SwitchPort switchPort) {
 		// TODO Auto-generated method stub
@@ -607,13 +626,11 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		return securityPort.remove(switchPort);
 	}
 
-
 	@Override
 	public Set<SwitchPort> getSecurityPorts() {
 		// TODO Auto-generated method stub
 		return securityPort;
 	}
-
 
 	@Override
 	public List<Binding<?>> getBindings() {
