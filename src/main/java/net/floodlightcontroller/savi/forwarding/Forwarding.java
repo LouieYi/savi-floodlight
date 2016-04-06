@@ -73,7 +73,9 @@ import net.floodlightcontroller.util.FlowModUtils;
 
 public class Forwarding extends ForwardingBase implements IFloodlightModule, IOFMessageListener, IOFSwitchListener {
 
-	
+	/**
+	 * 
+	 */
 	protected MPLSLabelManager coreSwitchLabelManager;
 	protected Map<EthType, MPLSLabelManager> edgeSwitchLabelManagers;
 	

@@ -30,10 +30,15 @@ import net.floodlightcontroller.savi.service.SAVIProviderService;
 import net.floodlightcontroller.savi.service.SAVIService;
 import net.floodlightcontroller.threadpool.IThreadPoolService;
 
+/**
+ * SAVI base service, new module should extends SAVIBaseService. 
+ * @author zhouyu
+ *
+ */
 public abstract class SAVIBaseService implements SAVIService, IFloodlightModule{
 
 	static Logger log = LoggerFactory.getLogger(SAVIBaseService.class);
-	
+	// Dependent services
 	IFloodlightProviderService floodlightProvider;
 	IThreadPoolService threadPoolService;
 	SAVIProviderService	saviProvider;

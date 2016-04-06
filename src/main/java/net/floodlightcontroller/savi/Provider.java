@@ -67,7 +67,7 @@ import net.floodlightcontroller.savi.action.PacketOutAction;
 import net.floodlightcontroller.savi.action.UnbindIPv4Action;
 import net.floodlightcontroller.savi.action.UnbindIPv6Action;
 import net.floodlightcontroller.savi.binding.Binding;
-import net.floodlightcontroller.savi.rest.SAVIRest.SAVIRoutable;
+import net.floodlightcontroller.savi.binding.BindingManager;
 import net.floodlightcontroller.savi.rest.SAVIRestRoute;
 import net.floodlightcontroller.savi.service.SAVIProviderService;
 import net.floodlightcontroller.savi.service.SAVIService;
@@ -335,8 +335,6 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 			mb.setExact(MatchField.ETH_TYPE, EthType.IPv4);
 			protocolRules.add(mb.build());
 		}
-		
-		
 		
 		securityPort = new HashSet<>();
 		

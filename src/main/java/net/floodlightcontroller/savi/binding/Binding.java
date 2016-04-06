@@ -16,7 +16,6 @@ public class Binding<T extends IPAddress<?>> {
 	private long bindingTime; 
 	private long leaseTime;
 	
-	
 	private static final int PRIME = 43;
 	
 	

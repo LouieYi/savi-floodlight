@@ -33,3 +33,4 @@ net.floodlightcontroller.savi.forwarding.Forwarding
 net.floodlightcontroller.savi.module.DHCPService
 net.floodlightcontroller.savi.module.SLAACService
 net.floodlightcontroller.savi.module.DHCPv6Service
+net.floodlightcontroller.savi.web.Web
