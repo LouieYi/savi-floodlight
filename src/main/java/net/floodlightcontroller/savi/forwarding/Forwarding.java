@@ -36,6 +36,7 @@ import org.projectfloodlight.openflow.types.MacAddress;
 import org.projectfloodlight.openflow.types.OFBufferId;
 import org.projectfloodlight.openflow.types.OFPort;
 import org.projectfloodlight.openflow.types.OFVlanVidMatch;
+import org.projectfloodlight.openflow.types.TableId;
 import org.projectfloodlight.openflow.types.U32;
 import org.projectfloodlight.openflow.types.U64;
 import org.projectfloodlight.openflow.types.VlanVid;
@@ -67,6 +68,7 @@ import net.floodlightcontroller.routing.Route;
 import net.floodlightcontroller.routing.RoutingDecision;
 import net.floodlightcontroller.savi.Provider;
 import net.floodlightcontroller.savi.forwarding.mpls.MPLSLabelManager;
+import net.floodlightcontroller.savi.service.SAVIProviderService;
 import net.floodlightcontroller.topology.ITopologyService;
 import net.floodlightcontroller.topology.NodePortTuple;
 import net.floodlightcontroller.util.FlowModUtils;
@@ -78,7 +80,6 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 	 */
 	protected MPLSLabelManager coreSwitchLabelManager;
 	protected Map<EthType, MPLSLabelManager> edgeSwitchLabelManagers;
-	
 	/**
 	 * 
 	 * @param sw
@@ -156,7 +157,6 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 			if (log.isTraceEnabled()) {
 				log.trace("No decision was made for PacketIn={}, forwarding", pi);
 			}
-
 			if (eth.isBroadcast() || eth.isMulticast()) {
 				doFlood(sw, pi, cntx);
 			} else {
@@ -237,7 +237,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 				fmb.setActions(actions)
 				   .setCookie(cookie)
 				   .setMatch(match)
-				   .setTableId(Provider.FLOW_TABLE_ID)
+				   .setTableId(TABLE_ID)
 				   .setHardTimeout(FLOWMOD_DEFAULT_HARD_TIMEOUT_CONSTANT)
 				   .setIdleTimeout(FLOWMOD_DEFAULT_IDLE_TIMEOUT_CONSTANT)
 				   .setPriority(FLOWMOD_DEFAULT_PRIORITY)
@@ -265,7 +265,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 					
 					fmb.setFlags(sfmf)
 					   .setActions(actions)
-					   .setTableId(Provider.FLOW_TABLE_ID)
+					   .setTableId(TABLE_ID)
 					   .setCookie(cookie)
 					   .setMatch(creatematchFromMPLS(sw, label))
 					   .setHardTimeout(FLOWMOD_DEFAULT_HARD_TIMEOUT)
@@ -298,7 +298,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 					sfmf.add(OFFlowModFlags.SEND_FLOW_REM);
 					
 					fmb.setFlags(sfmf)
-					   .setTableId(Provider.FLOW_TABLE_ID)
+					   .setTableId(TABLE_ID)
 					   .setActions(actions)
 					   .setCookie(cookie)
 					   .setMatch(creatematchFromMPLS(sw, label))
@@ -672,6 +672,13 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 		this.deviceManagerService = context.getServiceImpl(IDeviceService.class);
 		this.routingEngineService = context.getServiceImpl(IRoutingService.class);
 		this.topologyService = context.getServiceImpl(ITopologyService.class);
+		
+		if(context.getServiceImpl(SAVIProviderService.class) == null){
+			TABLE_ID = TableId.of(0);
+		}
+		else {
+			TABLE_ID = Provider.FLOW_TABLE_ID;
+		}
 		
 		this.coreSwitchLabelManager = new MPLSLabelManager();
 		this.edgeSwitchLabelManagers = new HashMap<>();

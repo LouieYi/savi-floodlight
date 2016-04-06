@@ -47,6 +47,7 @@ import net.floodlightcontroller.util.OFDPAUtils;
 import net.floodlightcontroller.util.OFMessageDamper;
 import net.floodlightcontroller.util.TimedCache;
 
+import org.easymock.internal.matchers.Null;
 import org.projectfloodlight.openflow.protocol.OFFlowMod;
 import org.projectfloodlight.openflow.protocol.match.Match;
 import org.projectfloodlight.openflow.protocol.match.MatchField;
@@ -63,7 +64,9 @@ import org.projectfloodlight.openflow.types.DatapathId;
 import org.projectfloodlight.openflow.types.MacAddress;
 import org.projectfloodlight.openflow.types.OFBufferId;
 import org.projectfloodlight.openflow.types.OFPort;
+import org.projectfloodlight.openflow.types.TableId;
 import org.projectfloodlight.openflow.types.U64;
+import org.python.indexer.ast.NUnaryOp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,7 +88,7 @@ public abstract class ForwardingBase implements IOFMessageListener {
 													// table-miss flow in
 													// OF1.3+, so we need to use
 													// 1
-
+	protected static TableId TABLE_ID = null;
 	protected static boolean FLOWMOD_DEFAULT_SET_SEND_FLOW_REM_FLAG = false;
 
 	protected static boolean FLOWMOD_DEFAULT_MATCH_VLAN = true;
@@ -260,7 +263,11 @@ public abstract class ForwardingBase implements IOFMessageListener {
 				flags.add(OFFlowModFlags.SEND_FLOW_REM);
 				fmb.setFlags(flags);
 			}
-
+			
+			if(TABLE_ID != null) {
+				fmb.setTableId(TABLE_ID);
+			}
+			
 			fmb.setMatch(mb.build()).setIdleTimeout(FLOWMOD_DEFAULT_IDLE_TIMEOUT)
 					.setHardTimeout(FLOWMOD_DEFAULT_HARD_TIMEOUT).setBufferId(OFBufferId.NO_BUFFER).setCookie(cookie)
 					.setOutPort(outPort).setPriority(FLOWMOD_DEFAULT_PRIORITY);

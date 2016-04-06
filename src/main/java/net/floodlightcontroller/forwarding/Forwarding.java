@@ -49,6 +49,8 @@ import net.floodlightcontroller.routing.ForwardingBase;
 import net.floodlightcontroller.routing.IRoutingDecision;
 import net.floodlightcontroller.routing.IRoutingService;
 import net.floodlightcontroller.routing.Route;
+import net.floodlightcontroller.savi.Provider;
+import net.floodlightcontroller.savi.service.SAVIProviderService;
 import net.floodlightcontroller.topology.ITopologyService;
 import net.floodlightcontroller.topology.NodePortTuple;
 import net.floodlightcontroller.util.FlowModUtils;
@@ -456,7 +458,14 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 		this.topologyService = context.getServiceImpl(ITopologyService.class);
 		this.debugCounterService = context.getServiceImpl(IDebugCounterService.class);
 		this.switchService = context.getServiceImpl(IOFSwitchService.class);
-
+		
+		if(context.getServiceImpl(SAVIProviderService.class) == null){
+			TABLE_ID = TableId.of(0);
+		}
+		else {
+			TABLE_ID = Provider.FLOW_TABLE_ID;
+		}
+		
 		Map<String, String> configParameters = context.getConfigParams(this);
 		String tmp = configParameters.get("hard-timeout");
 		if (tmp != null) {
