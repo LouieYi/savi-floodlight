@@ -239,8 +239,8 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 				   .setCookie(cookie)
 				   .setMatch(match)
 				   .setTableId(TABLE_ID)
-				   .setHardTimeout(FLOWMOD_DEFAULT_HARD_TIMEOUT_CONSTANT)
-				   .setIdleTimeout(FLOWMOD_DEFAULT_IDLE_TIMEOUT_CONSTANT)
+				   .setHardTimeout(FLOWMOD_DEFAULT_HARD_TIMEOUT)
+				   .setIdleTimeout(FLOWMOD_DEFAULT_IDLE_TIMEOUT)
 				   .setPriority(FLOWMOD_DEFAULT_PRIORITY)
 				   .setBufferId(OFBufferId.NO_BUFFER);
 				sw.write(fmb.build());	
