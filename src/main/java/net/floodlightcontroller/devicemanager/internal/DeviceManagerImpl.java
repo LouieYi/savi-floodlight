@@ -2522,7 +2522,6 @@ public class DeviceManagerImpl implements IDeviceService, IOFMessageListener, IT
 		 }
 	 }
 
-
 	 /**
 	  * For testing. Sets the syncService. Only call after init but before
 	  * startUp. Used by MockDeviceManager
