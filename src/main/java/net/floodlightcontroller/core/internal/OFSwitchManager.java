@@ -991,8 +991,7 @@ public class OFSwitchManager implements IOFSwitchManager, INewOFConnectionListen
 			.option(ChannelOption.SO_KEEPALIVE, true)
 			.option(ChannelOption.TCP_NODELAY, true)
 			.option(ChannelOption.SO_SNDBUF, Controller.SEND_BUFFER_SIZE);
-
-
+			
 			OFChannelInitializer initializer = new OFChannelInitializer(
 					this, 
 					this, 

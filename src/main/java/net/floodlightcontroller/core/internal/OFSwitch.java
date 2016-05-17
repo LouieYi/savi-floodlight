@@ -166,6 +166,7 @@ public class OFSwitch implements IOFSwitchBackend {
 
 		// Connections
 		this.connections = new ConcurrentHashMap<OFAuxId, IOFConnectionBackend>();
+		log.info("AUX :"+connection.getAuxId());
 		this.connections.put(connection.getAuxId(), connection);
 
 		// Switch's controller connection
@@ -783,6 +784,7 @@ public class OFSwitch implements IOFSwitchBackend {
 
 	@Override
 	public void registerConnection(IOFConnectionBackend connection) {
+		log.info("AUX :"+connection.getAuxId());
 		this.connections.put(connection.getAuxId(), connection);
 	}
 
@@ -794,6 +796,7 @@ public class OFSwitch implements IOFSwitchBackend {
 
 	@Override
 	public void removeConnections() {
+		log.info("CLEAR");
 		this.connections.clear();
 	}
 

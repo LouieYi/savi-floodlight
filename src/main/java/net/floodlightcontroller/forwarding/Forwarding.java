@@ -123,7 +123,9 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 			if (eth.isBroadcast() || eth.isMulticast()) {
 				doFlood(sw, pi, cntx);
 			} else {
+				long x = System.nanoTime();
 				doForwardFlow(sw, pi, cntx, false);
+				log.info("TIME "+(System.nanoTime()-x));
 			}
 		}
 

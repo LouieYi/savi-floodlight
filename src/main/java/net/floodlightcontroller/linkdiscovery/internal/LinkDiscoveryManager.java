@@ -194,7 +194,7 @@ IFloodlightModule, IInfoProvider {
 	// Link discovery task details.
 	protected SingletonTask discoveryTask;
 	protected final int DISCOVERY_TASK_INTERVAL = 1;
-	protected final int LINK_TIMEOUT = 35; // timeout as part of LLDP process.
+	protected final int LINK_TIMEOUT = 60; // timeout as part of LLDP process.
 	protected final int LLDP_TO_ALL_INTERVAL = 15; // 15 seconds.
 	protected long lldpClock = 0;
 	// This value is intentionally kept higher than LLDP_TO_ALL_INTERVAL.

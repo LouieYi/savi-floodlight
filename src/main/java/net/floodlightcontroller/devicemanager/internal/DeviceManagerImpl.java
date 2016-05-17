@@ -1180,7 +1180,7 @@ public class DeviceManagerImpl implements IDeviceService, IOFMessageListener, IT
 			cntInvalidSource.increment();
 			return Command.STOP;
 		}
-
+		
 		// Learn from ARP packet for special VRRP settings.
 		// In VRRP settings, the source MAC address and sender MAC
 		// addresses can be different.  In such cases, we need to learn
@@ -1354,8 +1354,9 @@ public class DeviceManagerImpl implements IDeviceService, IOFMessageListener, IT
 		if (dlAddr.equals(senderAddr)) return; // arp request
 
 		// Ignore broadcast/multicast source
-		if (senderAddr.isBroadcast() || senderAddr.isMulticast())
+		if (senderAddr.isBroadcast() || senderAddr.isMulticast()){
 			return;
+		}
 		// Ignore zero sender mac
 		if (senderAddr.equals(MacAddress.of(0)))
 			return;

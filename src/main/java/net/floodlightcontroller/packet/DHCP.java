@@ -112,6 +112,9 @@ public class DHCP extends BasePacket {
         return opCode;
     }
     
+    /**
+     * @return requestedIP
+     */
     public IPv4Address getRequestIP() {
 		return requestedIP;
 	}

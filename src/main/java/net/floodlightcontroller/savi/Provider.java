@@ -30,6 +30,7 @@ import org.projectfloodlight.openflow.types.OFBufferId;
 import org.projectfloodlight.openflow.types.OFPort;
 import org.projectfloodlight.openflow.types.TableId;
 import org.projectfloodlight.openflow.types.U64;
+import org.python.antlr.PythonParser.else_clause_return;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -133,7 +134,7 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 	 * @param pi
 	 * @param cntx
 	 */
-	private void processPacketIn(IOFSwitch sw, OFPacketIn pi, FloodlightContext cntx) {
+	private Command processPacketInMessage(IOFSwitch sw, OFPacketIn pi, FloodlightContext cntx) {
 		
 		OFPort inPort = (pi.getVersion().compareTo(OFVersion.OF_12) < 0 ? pi.getInPort()
 				: pi.getMatch().get(MatchField.IN_PORT));
@@ -165,8 +166,14 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		if(routingAction != null){
 			decision.setRoutingAction(routingAction);
 		}
-		
+
 		decision.addToContext(cntx);
+		if(routingAction == RoutingAction.NONE){
+			return Command.STOP;
+		}
+		else {
+			return Command.CONTINUE;
+		}
 	}
 	
 	/**
@@ -259,8 +266,7 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		
 		switch (msg.getType()) {
 		case PACKET_IN:
-			processPacketIn(sw, (OFPacketIn) msg, cntx);
-			return Command.CONTINUE;
+			return processPacketInMessage(sw, (OFPacketIn) msg, cntx);
 		case ERROR:
 			log.info("ERROR");
 		default:
