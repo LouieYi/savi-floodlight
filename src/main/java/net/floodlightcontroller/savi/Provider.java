@@ -6,7 +6,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.projectfloodlight.openflow.protocol.OFFactories;
 import org.projectfloodlight.openflow.protocol.OFFlowAdd;
@@ -30,7 +34,6 @@ import org.projectfloodlight.openflow.types.OFBufferId;
 import org.projectfloodlight.openflow.types.OFPort;
 import org.projectfloodlight.openflow.types.TableId;
 import org.projectfloodlight.openflow.types.U64;
-import org.python.antlr.PythonParser.else_clause_return;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,9 +49,12 @@ import net.floodlightcontroller.core.module.FloodlightModuleException;
 import net.floodlightcontroller.core.module.IFloodlightModule;
 import net.floodlightcontroller.core.module.IFloodlightService;
 import net.floodlightcontroller.core.util.AppCookie;
+import net.floodlightcontroller.core.util.SingletonTask;
 import net.floodlightcontroller.devicemanager.IDevice;
 import net.floodlightcontroller.devicemanager.IDeviceService;
 import net.floodlightcontroller.devicemanager.SwitchPort;
+import net.floodlightcontroller.linkdiscovery.ILinkDiscoveryListener;
+import net.floodlightcontroller.linkdiscovery.ILinkDiscoveryService;
 import net.floodlightcontroller.packet.ARP;
 import net.floodlightcontroller.packet.Ethernet;
 import net.floodlightcontroller.packet.IPv4;
@@ -73,6 +79,7 @@ import net.floodlightcontroller.savi.rest.SAVIRestRoute;
 import net.floodlightcontroller.savi.service.SAVIProviderService;
 import net.floodlightcontroller.savi.service.SAVIService;
 import net.floodlightcontroller.storage.IStorageSourceService;
+import net.floodlightcontroller.threadpool.IThreadPoolService;
 import net.floodlightcontroller.topology.ITopologyService;
 
 /**
@@ -81,7 +88,7 @@ import net.floodlightcontroller.topology.ITopologyService;
  *
  */
 public class Provider implements IFloodlightModule,
-IOFSwitchListener, IOFMessageListener, SAVIProviderService{
+IOFSwitchListener, IOFMessageListener, SAVIProviderService, ILinkDiscoveryListener{
 	
 	/**
 	 * Priority
@@ -101,7 +108,10 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 	protected IDeviceService deviceService;
 	protected ITopologyService topologyService;
 	protected IRestApiService restApiService;
+	protected IThreadPoolService threadPoolService;
+	protected ILinkDiscoveryService linkDiscoveryService;
 	
+	protected SingletonTask updateTask;
 	/**
 	 * Service
 	 */
@@ -114,6 +124,7 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 	private List<Match> serviceRules;
 	private List<Match> protocolRules;
 	private Set<SwitchPort> securityPort;
+	protected Queue<LDUpdate> updateQueue;
 	
 	public static final int SAVI_PROVIDER_APP_ID = 1000;
 	public static final TableId FLOW_TABLE_ID = TableId.of(1);
@@ -150,11 +161,13 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 					IDeviceService.fcStore.get(cntx, IDeviceService.CONTEXT_SRC_DEVICE), RoutingAction.FORWARD);
 		}
 		
+		if(topologyService.isEdge(sw.getId(), inPort)) {
 		// SAVI service process
-		for (SAVIService s : saviServices) {
-			if (s.match(eth)) {
-				routingAction = s.process(switchPort, eth);
-				break;
+			for(SAVIService s : saviServices) {
+				if (s.match(eth)) {
+					routingAction = s.process(switchPort, eth);
+					break;
+				}
 			}
 		}
 		
@@ -311,6 +324,9 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		dependencies.add(ITopologyService.class);
 		dependencies.add(IStorageSourceService.class);
 		dependencies.add(IRestApiService.class);
+		dependencies.add(ILinkDiscoveryService.class);
+		dependencies.add(IThreadPoolService.class);
+		
 		return dependencies;
 	}
 
@@ -325,9 +341,13 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		deviceService 	   	 = context.getServiceImpl(IDeviceService.class);
 		topologyService 	 = context.getServiceImpl(ITopologyService.class);
 		restApiService 		 = context.getServiceImpl(IRestApiService.class);
+		threadPoolService	 = context.getServiceImpl(IThreadPoolService.class);
+		linkDiscoveryService = context.getServiceImpl(ILinkDiscoveryService.class);
 		
 		saviServices 		= new ArrayList<>();
 		manager 			= new BindingManager();
+		
+		updateQueue = new ConcurrentLinkedQueue<>();
 		
 		serviceRules		= new ArrayList<>();
 		protocolRules		= new ArrayList<>();
@@ -361,6 +381,39 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 		floodlightProvider.addOFMessageListener(OFType.ERROR, this);
 		switchService.addOFSwitchListener(this);
 		restApiService.addRestletRoutable(new SAVIRestRoute());
+		linkDiscoveryService.addListener(this);
+		
+		ScheduledExecutorService ses = threadPoolService.getScheduledExecutor();
+		
+		updateTask = new SingletonTask(ses, new Runnable() {
+			
+			@Override
+			public void run() {
+				// TODO Auto-generated method stub
+				while(updateQueue.peek() != null){
+					LDUpdate update = updateQueue.remove();
+					
+					switch(update.getOperation()){
+					case PORT_UP:
+						if(!topologyService.isEdge(update.getSrc(), update.getSrcPort())){
+							log.info("LOG");
+							List<OFInstruction> instructions = new ArrayList<>();
+							instructions.add(OFFactories.getFactory(OFVersion.OF_13).instructions().gotoTable(FLOW_TABLE_ID));
+							
+							Match.Builder mb = OFFactories.getFactory(OFVersion.OF_13).buildMatch();
+							mb.setExact(MatchField.IN_PORT, update.getSrcPort());
+							
+							doFlowMod(update.getSrc(), TableId.of(0), mb.build(), null, instructions, BINDING_LAYER_PRIORITY);
+						}
+						break;
+					default:
+					}
+					
+				}
+				updateTask.reschedule(1, TimeUnit.SECONDS);
+			}
+		});
+		updateTask.reschedule(1, TimeUnit.SECONDS);
 	}
 
 	/**
@@ -804,6 +857,18 @@ IOFSwitchListener, IOFMessageListener, SAVIProviderService{
 	public List<Binding<?>> getBindings() {
 		// TODO Auto-generated method stub
 		return manager.getBindings();
+	}
+
+	@Override
+	public void linkDiscoveryUpdate(LDUpdate update) {
+		// TODO Auto-generated method stub
+		updateQueue.add(update);
+	}
+
+	@Override
+	public void linkDiscoveryUpdate(List<LDUpdate> updateList) {
+		// TODO Auto-generated method stub
+		updateQueue.addAll(updateList);
 	}
 	
 }
