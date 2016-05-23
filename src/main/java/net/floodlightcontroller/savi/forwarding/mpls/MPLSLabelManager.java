@@ -1,11 +1,17 @@
 package net.floodlightcontroller.savi.forwarding.mpls;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 
+import org.projectfloodlight.openflow.protocol.action.OFAction;
+import org.projectfloodlight.openflow.protocol.instruction.OFInstruction;
+import org.projectfloodlight.openflow.protocol.instruction.OFInstructionApplyActions;
+import org.projectfloodlight.openflow.protocol.ver13.OFInstructionsVer13;
 import org.projectfloodlight.openflow.types.DatapathId;
 
 import net.floodlightcontroller.devicemanager.SwitchPort;
@@ -14,11 +20,13 @@ public class MPLSLabelManager {
 	public static int MAX_LABEL_NUMBER = 65536;
 	
 	static Queue<Integer> labelQueue;			// Available labels 
-	static Map<Integer, SwitchPort> switchPortMap;
+	
+	
+	Map<DatapathId,Map<List<OFInstruction>,Integer>> switchLabelMap;
+	
 	Map<SwitchPort, Integer> labelMap;  // Unavailable labels
 	
 	static {
-		switchPortMap = new ConcurrentHashMap<>();
 		labelQueue = new ConcurrentLinkedQueue<>();
 		for(int i = 1000; i<MAX_LABEL_NUMBER; i++){
 			labelQueue.add(i);
@@ -28,6 +36,7 @@ public class MPLSLabelManager {
 	 * Simple constructor 
 	 */
 	public MPLSLabelManager(){
+		switchLabelMap = new ConcurrentHashMap<>();
 		labelMap = new ConcurrentHashMap<>();
 	}
 	
@@ -47,45 +56,61 @@ public class MPLSLabelManager {
 		return i.intValue();
 	}
 	
-	public static SwitchPort getSwitchPort(int label){
-		return switchPortMap.get(label);
+	
+	public Integer getLabel(DatapathId switchId, List<OFAction> actions) {
+		if(switchLabelMap.containsKey(switchId)){
+			Map<List<OFInstruction>,Integer> labelMap = switchLabelMap.get(switchId);
+			
+			OFInstructionApplyActions.Builder builder = new OFInstructionsVer13().buildApplyActions();
+			builder.setActions(actions);
+			
+			List<OFInstruction> instructions = new ArrayList<>();
+			instructions.add(builder.build());
+			
+			return labelMap.get(instructions);
+			
+		}
+		return null;
 	}
 	
-	public Integer getLabel(SwitchPort switchPort){
-		return labelMap.get(switchPort);
-	}
-	public void addLabel(SwitchPort switchPort,int label){
-		synchronized(switchPortMap){
-			switchPortMap.put(label, switchPort);
+	
+	public void addLabel(DatapathId switchId, List<OFAction> actions, int label) {
+		OFInstructionApplyActions.Builder builder = new OFInstructionsVer13().buildApplyActions();
+		builder.setActions(actions);
+		List<OFInstruction> instructions = new CopyOnWriteArrayList<>();
+		instructions.add(builder.build());
+		Map<List<OFInstruction>,Integer> labelMap = null;
+		
+		if(switchLabelMap.containsKey(switchId)) {
+			labelMap = switchLabelMap.get(switchId);
+			labelMap.put(instructions, label);
 		}
-		labelMap.put(switchPort, new Integer(label));
-	}
-	public Integer delLabel(SwitchPort switchPort) {
-		Integer label = labelMap.get(switchPort);
-		synchronized(switchPortMap){
-			switchPortMap.remove(label);
-
+		else {
+			labelMap = new ConcurrentHashMap<>();
+			labelMap.put(instructions, label);
+			switchLabelMap.put(switchId, labelMap);
 		}
-		synchronized(labelQueue){
-			if(label!=null){
-				labelQueue.add(label);
+		labelMap.put(instructions, label);
+	}
+	
+	public void delSwitch(DatapathId switchId) {
+		switchLabelMap.remove(switchId);
+	}
+	
+	public void delLabel(int label) {
+		for(Map<List<OFInstruction>,Integer> m: switchLabelMap.values()){
+			for(List list:m.keySet()) {
+				Integer i = m.get(list);
+				if(i.intValue() == label) {
+					m.remove(list);
+					break;
+				}
 			}
 		}
-		return labelMap.remove(switchPort);
 	}
-	public void delLabels(List<SwitchPort> list) {
-		for(SwitchPort switchPort:list){
-			delLabel(switchPort);
-		}
-	}
+	
 	public boolean isContain(SwitchPort switchPort){
 		return labelMap.containsKey(switchPort);
 	}
-	public void delSwitch(DatapathId dpid){
-		for(SwitchPort switchPort:labelMap.keySet()){
-			if(dpid.equals(switchPort.getSwitchDPID())){
-				delLabel(switchPort);
-			}
-		}
-	}
+	
 }

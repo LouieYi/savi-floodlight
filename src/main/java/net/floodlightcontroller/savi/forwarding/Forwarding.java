@@ -78,8 +78,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 	/**
 	 * 
 	 */
-	protected MPLSLabelManager coreSwitchLabelManager;
-	protected Map<EthType, MPLSLabelManager> edgeSwitchLabelManagers;
+	protected MPLSLabelManager switchLabelManager;
 	/**
 	 * 
 	 * @param sw
@@ -94,23 +93,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 		if(label == null){
 			return Command.CONTINUE;
 		}
-		SwitchPort switchPort=MPLSLabelManager.getSwitchPort(label.getRaw());
-		
-		if(switchPort!=null){
-			if(coreSwitchLabelManager.isContain(switchPort)){
-				coreSwitchLabelManager.delLabel(switchPort);
-			}
-			else{
-				for(MPLSLabelManager m:edgeSwitchLabelManagers.values()){
-					if(m.isContain(switchPort)){
-						m.delLabel(switchPort);
-						break;
-					}
-				}
-			}
-			
-		}
-		
+		switchLabelManager.delLabel(label.getRaw());
 		return Command.CONTINUE;
 	}
 	
@@ -197,7 +180,6 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 			boolean requestFlowRemovedNotification, OFFlowModCommand flowModCommand) {
 		
 		Ethernet eth = IFloodlightProviderService.bcStore.get(cntx, IFloodlightProviderService.CONTEXT_PI_PAYLOAD);
-		MPLSLabelManager edgeSwitchManager = edgeSwitchLabelManagers.get(eth.getEtherType());
 		ArrayList<U32> labels = new ArrayList<U32>();
 		List<NodePortTuple> switchPortList = route.getPath();
 		boolean pushDone = false;
@@ -246,61 +228,36 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 				sw.write(fmb.build());	
 				pushDone = true;
 			}
-			else if(index == size - 1){
-				Integer tmp = edgeSwitchManager.getLabel(switchPort);
+			else {
+
+				ArrayList<OFAction> actions = new ArrayList<OFAction>();
 				
-				if(tmp != null){
-					label = tmp.intValue();
+				if(index == size - 1) {
+					actions.add(sw.getOFFactory().actions().popMpls(eth.getEtherType()));
 				}
-				else{
-					
-					label = MPLSLabelManager.allocateNewLabel();
-					edgeSwitchManager.addLabel(switchPort, label);
-					
-					ArrayList<OFAction> actions = new ArrayList<OFAction>();
-					actions.add(sw.getOFFactory().actions().popMpls(EthType.IPv4));
-					actions.add(sw.getOFFactory().actions().output(outPort, Integer.MAX_VALUE));
-					OFFlowMod.Builder fmb = sw.getOFFactory().buildFlowAdd();
-					Set<OFFlowModFlags> sfmf = new HashSet<OFFlowModFlags>();
-					sfmf.add(OFFlowModFlags.SEND_FLOW_REM);
-					
-					fmb.setFlags(sfmf)
-					   .setActions(actions)
-					   .setTableId(TABLE_ID)
-					   .setCookie(cookie)
-					   .setMatch(creatematchFromMPLS(sw, label))
-					   .setHardTimeout(FLOWMOD_DEFAULT_HARD_TIMEOUT)
-					   .setIdleTimeout(FLOWMOD_DEFAULT_IDLE_TIMEOUT)
-					   .setPriority(FLOWMOD_DEFAULT_PRIORITY)
-					   .setBufferId(OFBufferId.NO_BUFFER);
-					sw.write(fmb.build());
-				}
-				
-				labels.add(U32.of(label));
-				
-				pushPacket(sw, eth, OFPort.CONTROLLER, outPort, cntx);
-			}
-			else{
-				Integer tmp = coreSwitchLabelManager.getLabel(switchPort);
-				
-				if(tmp != null){
-					label = tmp.intValue();
-				}
-				else{
-					label = MPLSLabelManager.allocateNewLabel();
-					coreSwitchLabelManager.addLabel(switchPort, label);
-					
-					
-					ArrayList<OFAction> actions = new ArrayList<OFAction>();
+				else {
 					actions.add(sw.getOFFactory().actions().popMpls(EthType.MPLS_UNICAST));
-					actions.add(sw.getOFFactory().actions().output(outPort, Integer.MAX_VALUE));
+				}
+			
+				actions.add(sw.getOFFactory().actions().output(outPort, Integer.MAX_VALUE));
+				
+				Integer tmp = switchLabelManager.getLabel(dpid, actions);
+				
+				if(tmp != null){
+					label = tmp.intValue();
+				}
+				else{
+					
+					label = MPLSLabelManager.allocateNewLabel();
+					switchLabelManager.addLabel(dpid, actions, label);
+
 					OFFlowMod.Builder fmb = sw.getOFFactory().buildFlowAdd();
 					Set<OFFlowModFlags> sfmf = new HashSet<OFFlowModFlags>();
 					sfmf.add(OFFlowModFlags.SEND_FLOW_REM);
 					
 					fmb.setFlags(sfmf)
-					   .setTableId(TABLE_ID)
 					   .setActions(actions)
+					   .setTableId(TABLE_ID)
 					   .setCookie(cookie)
 					   .setMatch(creatematchFromMPLS(sw, label))
 					   .setHardTimeout(FLOWMOD_DEFAULT_HARD_TIMEOUT)
@@ -308,8 +265,14 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 					   .setPriority(FLOWMOD_DEFAULT_PRIORITY)
 					   .setBufferId(OFBufferId.NO_BUFFER);
 					sw.write(fmb.build());
-				}	
+				}
+				
 				labels.add(U32.of(label));
+				
+			}
+			
+			if(index == size - 1) {
+				pushPacket(sw, eth, OFPort.CONTROLLER, outPort, cntx);
 			}
 		}
 		return pushDone;
@@ -681,12 +644,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 			TABLE_ID = Provider.FLOW_TABLE_ID;
 		}
 		
-		this.coreSwitchLabelManager = new MPLSLabelManager();
-		this.edgeSwitchLabelManagers = new HashMap<>();
-		
-		this.edgeSwitchLabelManagers.put(EthType.ARP, new MPLSLabelManager());
-		this.edgeSwitchLabelManagers.put(EthType.IPv4, new MPLSLabelManager());
-		this.edgeSwitchLabelManagers.put(EthType.IPv6, new MPLSLabelManager());
+		this.switchLabelManager = new MPLSLabelManager();
 		
 	}
 	
@@ -725,10 +683,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 	@Override
 	public void switchRemoved(DatapathId switchId) {
 		// TODO Auto-generated method stub
-		coreSwitchLabelManager.delSwitch(switchId);;
-		for(MPLSLabelManager m:edgeSwitchLabelManagers.values()){
-			m.delSwitch(switchId);
-		}
+		switchLabelManager.delSwitch(switchId);
 	}
 
 	/**
