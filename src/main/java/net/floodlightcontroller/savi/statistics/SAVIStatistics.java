@@ -163,7 +163,7 @@ public class SAVIStatistics implements IFloodlightModule, IOFMessageListener, IS
 			OFPacketOut po = (OFPacketOut) msg;
 			Ethernet eth = new Ethernet();
 			eth.deserialize(po.getData(), 0, po.getData().length);
-            if(eth.getEtherType() == EthType.MPLS_UNICAST){
+            if(eth.getEtherType() == EthType.ARP){
                 return true;
             }
             if(eth.getEtherType() != EthType.IPv4) {
@@ -175,7 +175,7 @@ public class SAVIStatistics implements IFloodlightModule, IOFMessageListener, IS
 			Ethernet eth = new Ethernet();
 			eth.deserialize(pi.getData(), 0, pi.getData().length);
 			OFPort inPort = pi.getMatch().get(MatchField.IN_PORT);
-			if (eth.getEtherType() == EthType.IPv4 || eth.getEtherType() == EthType.MPLS_UNICAST) {
+			if (eth.getEtherType() == EthType.IPv4 || eth.getEtherType() == EthType.ARP) {
 				return true;
 			}
 			else {
