@@ -30,7 +30,6 @@ public class MPLSLabelManager {
 	
 	Map<DatapathId,Map<List<OFInstruction>,Integer>> switchLabelMap;
 	
-	Map<SwitchPort, Integer> labelMap;  // Unavailable labels
 	
 	static {
 		labelQueue = new ConcurrentLinkedQueue<>();
@@ -43,7 +42,6 @@ public class MPLSLabelManager {
 	 */
 	public MPLSLabelManager(){
 		switchLabelMap = new ConcurrentHashMap<>();
-		labelMap = new ConcurrentHashMap<>();
 	}
 	
 	/**
@@ -86,7 +84,6 @@ public class MPLSLabelManager {
 		List<OFInstruction> instructions = new CopyOnWriteArrayList<>();
 		instructions.add(builder.build());
 		Map<List<OFInstruction>,Integer> labelMap = null;
-		
 		if(switchLabelMap.containsKey(switchId)) {
 			labelMap = switchLabelMap.get(switchId);
 			labelMap.put(instructions, label);
@@ -100,23 +97,30 @@ public class MPLSLabelManager {
 	}
 	
 	public void delSwitch(DatapathId switchId) {
-		switchLabelMap.remove(switchId);
+		Map<List<OFInstruction>,Integer> m = switchLabelMap.remove(switchId);
+		for(Integer i:m.values()) {
+			labelQueue.add(i);
+		}
 	}
 	
 	public void delLabel(int label) {
 		for(Map<List<OFInstruction>,Integer> m: switchLabelMap.values()){
 			for(List<OFInstruction> list:m.keySet()) {
 				Integer i = m.get(list);
+				if( i == null) {
+					System.out.println("111111");
+				}
 				if(i.intValue() == label) {
 					m.remove(list);
 					break;
 				}
 			}
 		}
+		labelQueue.add(label);
 	}
 	
 	public boolean isContain(SwitchPort switchPort){
-		return labelMap.containsKey(switchPort);
+		return false;//labelMap.containsKey(switchPort);
 	}
 	
 }
