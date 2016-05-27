@@ -1,11 +1,14 @@
 package net.floodlightcontroller.savi.forwarding.mpls;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.projectfloodlight.openflow.protocol.action.OFAction;
@@ -20,7 +23,10 @@ public class MPLSLabelManager {
 	public static int MAX_LABEL_NUMBER = 65536;
 	
 	static Queue<Integer> labelQueue;			// Available labels 
+	static Set<Integer> labelSet;				// Label in use
 	
+	protected static int MAX_LABEL_THRESHOLD = 4096*2;
+	protected static int MIN_LABEL_THRESHOLD = 500;
 	
 	Map<DatapathId,Map<List<OFInstruction>,Integer>> switchLabelMap;
 	
@@ -99,7 +105,7 @@ public class MPLSLabelManager {
 	
 	public void delLabel(int label) {
 		for(Map<List<OFInstruction>,Integer> m: switchLabelMap.values()){
-			for(List list:m.keySet()) {
+			for(List<OFInstruction> list:m.keySet()) {
 				Integer i = m.get(list);
 				if(i.intValue() == label) {
 					m.remove(list);

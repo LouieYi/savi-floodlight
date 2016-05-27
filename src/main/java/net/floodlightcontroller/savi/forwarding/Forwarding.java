@@ -79,6 +79,9 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 	 * 
 	 */
 	protected MPLSLabelManager switchLabelManager;
+	
+	
+	protected boolean ENABLE_FAST_FLOOD = true;
 	/**
 	 * 
 	 * @param sw
@@ -259,7 +262,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 					   .setActions(actions)
 					   .setTableId(TABLE_ID)
 					   .setCookie(cookie)
-					   .setMatch(creatematchFromMPLS(sw, label))
+					   .setMatch(createMatchFromMPLS(sw, label))
 					   .setHardTimeout(FLOWMOD_DEFAULT_HARD_TIMEOUT)
 					   .setIdleTimeout(FLOWMOD_DEFAULT_IDLE_TIMEOUT)
 					   .setPriority(FLOWMOD_DEFAULT_PRIORITY)
@@ -437,7 +440,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 	 * @param label
 	 * @return
 	 */
-	protected Match creatematchFromMPLS(IOFSwitch sw, int label){
+	protected Match createMatchFromMPLS(IOFSwitch sw, int label){
 		Match.Builder mb = sw.getOFFactory().buildMatch();
 		mb.setExact(MatchField.ETH_TYPE, EthType.MPLS_UNICAST);
 		mb.setExact(MatchField.MPLS_LABEL, U32.of(label));
@@ -543,6 +546,24 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 		}
 		return mb.build();
 	}
+	
+	protected void doPacketOut(IOFSwitch sw, List<OFPort> ports, byte[] data) {
+		List<OFAction> actions = new ArrayList<>();
+		for(OFPort port:ports) {
+			actions.add(sw.getOFFactory().actions().output(port, Integer.MAX_VALUE));
+		}
+		
+		OFPacketOut.Builder pob = sw.getOFFactory().buildPacketOut();
+		
+		pob.setActions(actions)
+		   .setBufferId(OFBufferId.NO_BUFFER)
+		   .setData(data)
+		   .setInPort(OFPort.CONTROLLER);
+		
+		sw.write(pob.build());
+		
+	}
+	
 	protected void doPacketOut(SwitchPort switchPort, byte[] data) {
 		
 		IOFSwitch sw = switchService.getActiveSwitch(switchPort.getSwitchDPID());
@@ -571,6 +592,11 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 	protected void doFlood(IOFSwitch sw, OFPacketIn pi, FloodlightContext cntx) {
 		OFPort inPort = (pi.getVersion().compareTo(OFVersion.OF_12) < 0 ? pi.getInPort() : pi.getMatch().get(MatchField.IN_PORT));
 		// Set Action to flood
+		
+		if(ENABLE_FAST_FLOOD) {
+			doFastFlood(sw, pi, cntx);
+		}
+		
 		SwitchPort inSwitchPort = new SwitchPort(sw.getId(),inPort);
 		Collection<? extends IDevice> tmp = deviceManagerService.getAllDevices();
 		for (IDevice d : tmp) {
@@ -581,6 +607,43 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 				}
 			}
 		}
+	}
+	
+	/**
+	 * Fast flood method.
+	 * @param sw
+	 * @param pi
+	 * @param cntx
+	 */
+	
+	protected void doFastFlood(IOFSwitch sw,OFPacketIn pi,FloodlightContext cntx) {
+		List<OFPort> ports = new ArrayList<>();
+		for(OFPort port :sw.getEnabledPortNumbers()){
+			if(!port.equals(port)&&topologyService.isEdge(sw.getId(), port)) {
+				ports.add(port);
+			}
+		}
+		if(ports.size() > 0) {
+			doPacketOut(sw,ports, pi.getData());
+		}
+		
+		for(DatapathId switchId :switchService.getAllSwitchDpids()) {
+			if(!switchId.equals(sw.getId())) {
+				ports.clear();
+				sw = switchService.getActiveSwitch(switchId);
+				for(OFPort port:sw.getEnabledPortNumbers()) {
+					if(topologyService.isEdge(switchId, port)) {
+						ports.add(port);
+					}
+				}
+				
+				if(ports.size() > 0) {
+					doPacketOut(sw, ports,pi.getData());
+				}
+				
+			}
+		}
+		
 	}
 	/**
 	 * 
