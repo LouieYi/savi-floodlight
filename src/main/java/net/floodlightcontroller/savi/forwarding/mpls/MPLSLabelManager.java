@@ -81,38 +81,44 @@ public class MPLSLabelManager {
 	public void addLabel(DatapathId switchId, List<OFAction> actions, int label) {
 		OFInstructionApplyActions.Builder builder = new OFInstructionsVer13().buildApplyActions();
 		builder.setActions(actions);
-		List<OFInstruction> instructions = new CopyOnWriteArrayList<>();
+		List<OFInstruction> instructions = new ArrayList<>();
 		instructions.add(builder.build());
 		Map<List<OFInstruction>,Integer> labelMap = null;
-		if(switchLabelMap.containsKey(switchId)) {
-			labelMap = switchLabelMap.get(switchId);
-			labelMap.put(instructions, label);
-		}
-		else {
-			labelMap = new ConcurrentHashMap<>();
-			labelMap.put(instructions, label);
-			switchLabelMap.put(switchId, labelMap);
+		synchronized(switchLabelMap) {
+			if(switchLabelMap.containsKey(switchId)) {
+				labelMap = switchLabelMap.get(switchId);
+				labelMap.put(instructions, label);
+			}
+			else {
+				labelMap = new ConcurrentHashMap<>();
+				labelMap.put(instructions, label);
+				switchLabelMap.put(switchId, labelMap);
+			}
 		}
 		labelMap.put(instructions, label);
 	}
 	
 	public void delSwitch(DatapathId switchId) {
-		Map<List<OFInstruction>,Integer> m = switchLabelMap.remove(switchId);
-		for(Integer i:m.values()) {
-			labelQueue.add(i);
+		Map<List<OFInstruction>,Integer> m = null; 
+		synchronized(switchLabelMap) {
+			m = switchLabelMap.remove(switchId);
+		}
+		if(m != null) {
+			for(Integer i:m.values()) {
+				labelQueue.add(i);
+			}
 		}
 	}
 	
 	public void delLabel(int label) {
 		for(Map<List<OFInstruction>,Integer> m: switchLabelMap.values()){
-			for(List<OFInstruction> list:m.keySet()) {
-				Integer i = m.get(list);
-				if( i == null) {
-					System.out.println("111111");
-				}
-				if(i.intValue() == label) {
-					m.remove(list);
-					break;
+			synchronized(m) {
+				for(List<OFInstruction> list:m.keySet()) {
+					Integer i = m.get(list);
+					if(i.intValue() == label) {
+						m.remove(list);
+						break;
+					}
 				}
 			}
 		}
