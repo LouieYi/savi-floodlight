@@ -3,7 +3,6 @@ package net.floodlightcontroller.savi.forwarding;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -193,7 +192,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 			DatapathId dpid = switchPortList.get(index).getNodeId();
 			IOFSwitch sw = switchService.getSwitch(dpid);
 			OFPort outPort = switchPortList.get(index).getPortId();
-			SwitchPort switchPort = new SwitchPort(dpid, outPort);
+			//SwitchPort switchPort = new SwitchPort(dpid, outPort);
 			
 			int label = 0;
 			if(sw == null){
@@ -632,7 +631,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 				ports.clear();
 				sw = switchService.getActiveSwitch(switchId);
 				for(OFPort port:sw.getEnabledPortNumbers()) {
-					if(topologyService.isEdge(switchId, port)) {
+					if(topologyService.isAttachmentPointPort(switchId, port)) {
 						ports.add(port);
 					}
 				}
