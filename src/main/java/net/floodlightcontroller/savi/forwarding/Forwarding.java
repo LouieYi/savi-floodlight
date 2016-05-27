@@ -618,7 +618,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 	protected void doFastFlood(IOFSwitch sw,OFPacketIn pi,FloodlightContext cntx) {
 		List<OFPort> ports = new ArrayList<>();
 		for(OFPort port :sw.getEnabledPortNumbers()){
-			if(!port.equals(port)&&topologyService.isEdge(sw.getId(), port)) {
+			if(!port.equals(port)&&topologyService.isAttachmentPointPort(sw.getId(), port)) {
 				ports.add(port);
 			}
 		}
@@ -629,15 +629,15 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 		for(DatapathId switchId :switchService.getAllSwitchDpids()) {
 			if(!switchId.equals(sw.getId())) {
 				ports.clear();
-				sw = switchService.getActiveSwitch(switchId);
-				for(OFPort port:sw.getEnabledPortNumbers()) {
+				IOFSwitch ofSwitch = switchService.getActiveSwitch(switchId);
+				for(OFPort port:ofSwitch.getEnabledPortNumbers()) {
 					if(topologyService.isAttachmentPointPort(switchId, port)) {
 						ports.add(port);
 					}
 				}
 				
 				if(ports.size() > 0) {
-					doPacketOut(sw, ports,pi.getData());
+					doPacketOut(ofSwitch, ports,pi.getData());
 				}
 				
 			}
