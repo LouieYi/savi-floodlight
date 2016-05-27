@@ -594,6 +594,7 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 		
 		if(ENABLE_FAST_FLOOD) {
 			doFastFlood(sw, pi, cntx);
+			return;
 		}
 		
 		SwitchPort inSwitchPort = new SwitchPort(sw.getId(),inPort);
@@ -616,9 +617,10 @@ public class Forwarding extends ForwardingBase implements IFloodlightModule, IOF
 	 */
 	
 	protected void doFastFlood(IOFSwitch sw,OFPacketIn pi,FloodlightContext cntx) {
+		OFPort inPort = (pi.getVersion().compareTo(OFVersion.OF_12) < 0 ? pi.getInPort() : pi.getMatch().get(MatchField.IN_PORT));
 		List<OFPort> ports = new ArrayList<>();
 		for(OFPort port :sw.getEnabledPortNumbers()){
-			if(!port.equals(port)&&topologyService.isAttachmentPointPort(sw.getId(), port)) {
+			if(!port.equals(inPort)&&topologyService.isAttachmentPointPort(sw.getId(), port)) {
 				ports.add(port);
 			}
 		}
